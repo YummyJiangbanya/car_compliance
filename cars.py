@@ -3,16 +3,19 @@ import pandas as pd
 import sqlite3
 import streamlit as st
 
-# 数据库文件名字
 DB_FILE = "car_compliance.db"
 
 
-# 自动解析并加载 Excel 表格初始化数据库（适配同学们的最细分类）
 def init_database_from_excel():
-  excel_path = r"E:\大创\cars\合规平台条文整理.xlsx"
+  # 获取当前 cars.py 文件所在的绝对文件夹路径（双保险核心！）
+  current_dir = os.path.dirname(os.path.abspath(__file__))
+  # 自动拼接出 Excel 的绝对路径，不管你在哪里运行都不会失效
+  excel_path = os.path.join(current_dir, "合规平台条文整理.xlsx")
+
   if not os.path.exists(excel_path):
     st.error(
-        f"找不到数据文件 {excel_path}，请确保该 Excel 文件与 cars.py 放在同级目录下！"
+        f"在路径 {excel_path} 下仍然找不到数据文件！请检查：\n1. 文件名有没有拼写"
+        "错误（如后缀是 .xlsx 还是 .xls）\n2. 确认文件真的和 cars.py 在同一个文件夹内。"
     )
     return
 
