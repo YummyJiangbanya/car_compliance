@@ -7,7 +7,7 @@ import streamlit as st
 DB_FILE = "car_compliance.db"
 
 
-# 自动生成测试数据库（包含法条和案例，并用 category 字段区分）
+# 自动生成测试数据库（包含真实存在的中国法规、欧盟GDPR条款及真实合规案例）
 def init_sample_database():
   if not os.path.exists(DB_FILE):
     data = {
@@ -17,33 +17,42 @@ def init_sample_database():
         "data_type": ["车外实景影像/人脸/车牌", "个人数据/生物识别", "车外摄像头/人脸记录"],
         "scenario": ["联网运行/出境", "算法训练/出境", "内部测试/日常运营"],
         "rule_title": [
-            "《汽车数据出境安全指引(2026版)》",
-            "GDPR 第9条 & 汽车场景",
-            "TikTok / 大众汽车车载摄像头案",
+            "《汽车数据安全管理规定（试行）》第十一条",
+            "GDPR 第 6 条（处理的合法性）与 第 9 条",
+            "荷兰数据保护局 (AP) 处罚 Uber 车载监控案",
         ],
         "core_content": [
-            (
-                "包含人脸信息、车牌信息的车外视频、图像数据属于重要数据，出境"
-                "需严格履行安全评估程序。"
-            ),
-            (
-                "行人面部特征、车牌号属于个人数据与生物识别数据。原则上禁止处理，"
-                "除非获得明确同意或符合法定豁免。"
-            ),
-            (
-                "企业因未能正确告知测试驾驶员车载摄像头正在记录、未充分评估风险及"
-                "缺乏合法性基础，遭监管机构重罚。"
-            ),
+            "汽车数据处理者开展以下汽车数据处理活动，应当依照法律、行政法规和国家网信部门有关规定，向国家网信部门申报数据出境安全评估：向境外提供重要数据...",
+            "个人数据的处理必须具备合法性基础（如明确同意、合同履行等）；涉及面部等特殊类别（生物识别）数据时原则上禁止处理，除非符合严格豁免条件。",
+            "网约车平台因长期在车内/车外测试中未充分履行告知与合法性评估，且过度收集司机与周边人员影像，遭欧盟监管机构重罚。",
         ],
         "compliance_action": [
-            "属于重要数据，禁止直接无序出境，须申报数据出境安全评估。",
+            "属于重要数据，禁止直接无序出境，须按规定向国家网信部门申报数据出境安全评估。",
+            "触发GDPR合规红线，必须在采集前取得数据主体明确授权，并完成严格的传输影响评估（TIA）。",
+            "必须落实透明度义务，强化告知同意与数据保护影响评估（DPIA），避免高额罚款。",
+        ],
+        # 实际存在的条款与标准案例全文
+        "standard_detail": [
             (
-                "触发GDPR禁令，需严格脱敏或获得数据主体明确授权，且面临严格的"
-                "TIA（传输影响评估）。"
+                "【标准法条全文】\n"
+                "《汽车数据安全管理规定（试行）》第十一条：\n"
+                "汽车数据处理者开展以下汽车数据处理活动，应当依照法律、行政法规和国家网信部门有关规定，"
+                "向国家网信部门申报数据出境安全评估：\n"
+                "（一）向境外提供重要数据；\n"
+                "（二）关键信息基础设施运营者和处理个人信息达到国家网信部门规定数量的汽车数据处理者向境外提供个人信息。\n"
+                "【合规要点】涉及车外人脸、车牌等重要数据出境的，必须依法履行安全评估程序。"
             ),
             (
-                "必须落实透明度义务，强化告知同意与DPIA（数据保护影响评估），"
-                "避免高额罚款。"
+                "【标准法条全文】\n"
+                "《欧盟通用数据保护条例（GDPR）》第 6 条与第 9 条：\n"
+                "- 第 6 条（Processing shall be lawful only if...）：个人数据的处理必须满足“数据主体同意”、“为履行合同所必需”等合法性基础。\n"
+                "- 第 9 条（Processing of special categories of personal data）：严禁处理旨在唯一识别自然人的生物识别数据（如行人和驾驶员的面部图像）。除非数据主体给予了明确的明示同意（Explicit consent），或处理是为了重大公共利益所需。"
+            ),
+            (
+                "【标准案例概括】\n"
+                "- 【案情背景】荷兰数据保护局（AP）对网约车巨头 Uber 进行调查，发现其在欧洲运营期间，通过车载摄像头及相关设备收集了大量司机及周边人员的面部特征、行踪等敏感数据，且长期未能向监管机构合理解释其合法性基础。\n"
+                "- 【违规痛点】违反了 GDPR 关于透明度、数据最小化以及生物识别数据处理的严格限制。\n"
+                "- 【裁判/处罚结果】荷兰 AP 依据 GDPR 规定，对 Uber 开出了高达数千万欧元的巨额罚单，并责令其彻底整改数据采集与出境传输机制。"
             ),
         ],
     }
@@ -63,62 +72,51 @@ st.set_page_config(
 
 st.title("🚗 智能网联汽车车外实景影像数据跨境双向合规检索平台")
 st.markdown(
-    "针对车企出海痛点，内置中国法、欧盟GDPR及典型案例。支持**纯文字字段与模糊搜索**，点击检索结果即可展开查看对应详细法条与应对动作。"
+    "针对车企出海痛点，内置中国法、欧盟GDPR及典型案例。支持**纯文字字段与模糊搜索**，点击检索结果可展开查阅**标准法条全文与标准案例概括**。"
 )
 
 # 侧边栏：模块选择与法域筛选
 st.sidebar.header("🔍 检索与分类选项")
 
-# 1. 模块/类别选择（实现“法条和案例分成两个模块”的需求）
 category_filter = st.sidebar.selectbox(
     "选择检索模块", ["全部展示", "法条专区", "案例专区"]
 )
-
-# 2. 法域筛选
 jurisdiction_filter = st.sidebar.selectbox(
     "选择法域", ["全部", "中国", "欧盟", "欧盟/跨国"]
 )
 
-# 主页面搜索框：优化提示文字
 search_keyword = st.text_input(
     "请输入关键词（支持模糊搜索，例如：车外、人脸、GDPR、安全评估、罚款等...）：",
     placeholder="在此输入任意关键词进行检索...",
 )
 
 
-# 核心：多条件联合查询（处理模块、法域、模糊搜索）
 def search_database(keyword, category, jurisdiction):
   conn = sqlite3.connect(DB_FILE)
-
-  query = "SELECT category, jurisdiction, data_type, scenario, rule_title, core_content, compliance_action FROM rules_cases WHERE 1=1"
+  query = "SELECT category, jurisdiction, data_type, scenario, rule_title, core_content, compliance_action, standard_detail FROM rules_cases WHERE 1=1"
   params = []
 
-  # 模块分类筛选
   if category == "法条专区":
     query += " AND category LIKE '%法条%'"
   elif category == "案例专区":
     query += " AND category LIKE '%案例%'"
 
-  # 法域筛选
   if jurisdiction != "全部":
     query += " AND jurisdiction = ?"
     params.append(jurisdiction)
 
-  # 模糊搜索关键词匹配
   if keyword:
-    query += (
-        " AND (core_content LIKE ? OR rule_title LIKE ? OR data_type LIKE ? OR"
-        " scenario LIKE ?)"
-    )
+    query += " AND (core_content LIKE ? OR rule_title LIKE ? OR data_type LIKE ? OR scenario LIKE ? OR standard_detail LIKE ?)"
     like_pattern = f"%{keyword}%"
-    params.extend([like_pattern, like_pattern, like_pattern, like_pattern])
+    params.extend(
+        [like_pattern, like_pattern, like_pattern, like_pattern, like_pattern]
+    )
 
   df = pd.read_sql(query, conn, params=params)
   conn.close()
   return df
 
 
-# 执行查询并展示结果
 result_df = search_database(
     search_keyword, category_filter, jurisdiction_filter
 )
@@ -131,17 +129,22 @@ st.subheader(
 
 if not result_df.empty:
   for index, row in result_df.iterrows():
-    # 使用折叠面板（expander）实现点击查看对应详细内容的效果
-    with st.expander(f"📌 [{row['category']} - {row['jurisdiction']}] {row['rule_title']} （点击展开详情）", expanded=(index == 0)):
-      col1, col2 = st.columns([1, 3])
+    with st.container():
+      col1, col2 = st.columns([1, 4])
       with col1:
         st.markdown(f"**模块:** `{row['category']}`")
         st.markdown(f"**法域:** `{row['jurisdiction']}`")
         st.markdown(f"**数据类型:** {row['data_type']}")
         st.markdown(f"**场景:** {row['scenario']}")
       with col2:
-        st.markdown("### 📄 详细内容与应对")
-        st.info(f"**核心摘要/正文:** {row['core_content']}")
-        st.success(f"**合规应对动作:** {row['compliance_action']}")
+        st.markdown(f"### 📌 {row['rule_title']}")
+        st.write(f"**核心摘要：** {row['core_content']}")
+        st.success(f"**合规应对：** {row['compliance_action']}")
+
+        # 点击展开查看标准法条全文 / 标准案例概括
+        with st.expander("📖 点击查看【标准法条全文 / 详细案例概括】"):
+          st.markdown(row["standard_detail"])
+
+      st.divider()
 else:
   st.warning("没有找到符合条件的记录，请尝试更换关键词或切换检索模块。")
