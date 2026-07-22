@@ -63,7 +63,7 @@ st.set_page_config(
 
 st.title("🚗 智能网联汽车车外实景影像数据跨境双向合规检索平台")
 st.markdown(
-    "针对车企出海痛点，内置中国法、欧盟GDPR及典型案例。支持**纯文字字段与模糊搜索**，助您一键检索合规要求。"
+    "针对车企出海痛点，内置中国法、欧盟GDPR及典型案例。支持**纯文字字段与模糊搜索**，点击检索结果即可展开查看对应详细法条与应对动作。"
 )
 
 # 侧边栏：模块选择与法域筛选
@@ -131,17 +131,17 @@ st.subheader(
 
 if not result_df.empty:
   for index, row in result_df.iterrows():
-    with st.container():
-      col1, col2 = st.columns([1, 4])
+    # 使用折叠面板（expander）实现点击查看对应详细内容的效果
+    with st.expander(f"📌 [{row['category']} - {row['jurisdiction']}] {row['rule_title']} （点击展开详情）", expanded=(index == 0)):
+      col1, col2 = st.columns([1, 3])
       with col1:
         st.markdown(f"**模块:** `{row['category']}`")
         st.markdown(f"**法域:** `{row['jurisdiction']}`")
         st.markdown(f"**数据类型:** {row['data_type']}")
         st.markdown(f"**场景:** {row['scenario']}")
       with col2:
-        st.markdown(f"### 📌 {row['rule_title']}")
-        st.info(f"**核心摘要（模糊匹配列）:** {row['core_content']}")
+        st.markdown("### 📄 详细内容与应对")
+        st.info(f"**核心摘要/正文:** {row['core_content']}")
         st.success(f"**合规应对动作:** {row['compliance_action']}")
-      st.divider()
 else:
   st.warning("没有找到符合条件的记录，请尝试更换关键词或切换检索模块。")
