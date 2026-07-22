@@ -31,7 +31,6 @@ def init_sample_database():
             "触发GDPR合规红线，必须在采集前取得数据主体明确授权，并完成严格的传输影响评估（TIA）。",
             "必须落实透明度义务，强化告知同意与数据保护影响评估（DPIA），避免高额罚款。",
         ],
-        # 实际存在的条款与标准案例全文
         "standard_detail": [
             (
                 "【标准法条全文】\n"
@@ -45,14 +44,14 @@ def init_sample_database():
             (
                 "【标准法条全文】\n"
                 "《欧盟通用数据保护条例（GDPR）》第 6 条与第 9 条：\n"
-                "- 第 6 条（Processing shall be lawful only if...）：个人数据的处理必须满足“数据主体同意”、“为履行合同所必需”等合法性基础。\n"
-                "- 第 9 条（Processing of special categories of personal data）：严禁处理旨在唯一识别自然人的生物识别数据（如行人和驾驶员的面部图像）。除非数据主体给予了明确的明示同意（Explicit consent），或处理是为了重大公共利益所需。"
+                "- 第 6 条：个人数据的处理必须满足“数据主体同意”、“为履行合同所必需”等合法性基础。\n"
+                "- 第 9 条：严禁处理旨在唯一识别自然人的生物识别数据（如行人和驾驶员的面部图像），除非数据主体给予了明确的明示同意（Explicit consent）。"
             ),
             (
                 "【标准案例概括】\n"
-                "- 【案情背景】荷兰数据保护局（AP）对网约车巨头 Uber 进行调查，发现其在欧洲运营期间，通过车载摄像头及相关设备收集了大量司机及周边人员的面部特征、行踪等敏感数据，且长期未能向监管机构合理解释其合法性基础。\n"
+                "- 【案情背景】荷兰数据保护局（AP）对网约车巨头 Uber 进行调查，发现其在欧洲运营期间，通过车载摄像头及相关设备收集了大量司机及周边人员的面部特征、行踪等敏感数据。\n"
                 "- 【违规痛点】违反了 GDPR 关于透明度、数据最小化以及生物识别数据处理的严格限制。\n"
-                "- 【裁判/处罚结果】荷兰 AP 依据 GDPR 规定，对 Uber 开出了高达数千万欧元的巨额罚单，并责令其彻底整改数据采集与出境传输机制。"
+                "- 【处罚结果】荷兰 AP 依据 GDPR 规定，对 Uber 开出了高达数千万欧元的巨额罚单。"
             ),
         ],
     }
@@ -112,11 +111,13 @@ def search_database(keyword, category, jurisdiction):
         [like_pattern, like_pattern, like_pattern, like_pattern, like_pattern]
     )
 
-  df = pd.read_sql(query, conn, params=params)
+  # 使用 pandas 读取查询结果
+  result_df = pd.read_sql(query, conn, params=params)
   conn.close()
-  return df
+  return result_df
 
 
+# 执行检索
 result_df = search_database(
     search_keyword, category_filter, jurisdiction_filter
 )
