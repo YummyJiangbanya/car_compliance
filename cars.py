@@ -15,13 +15,11 @@ DB_FILE = "car_compliance.db"
 
 
 def parse_and_split_content(cell_text):
-  """针对欧盟及长文本单元格，按 Article / 条 / 细则关键词进行智能拆分，确保每一条独立展示"""
-  if not cell_text or cell_text == "nan":
+  """针对欧盟及长文本单元格，按 Article / 条 / 细则关键词进行智能拆分"""
+  if not cell_text or str(cell_text).strip() == "nan":
     return []
 
   text = str(cell_text).strip()
-  # 匹配常见条款前缀，如 "Article 4", "Article 2", "第X条", "Step 1" 等
-  # 使用正则在不丢失内容的前提下分割多个条款段落
   pattern = r"(?=(?:Article\s+\d+|第[零一二三四五六七八九十百0-9]+条|Step\s+\d+))"
   parts = re.split(pattern, text)
 
@@ -33,7 +31,6 @@ def parse_and_split_content(cell_text):
 
 def extract_sort_key(text):
   """提取条款编号用于正序排序"""
-  # 匹配中文字数或数字条目
   match_cn = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
   if match_cn:
     num_str = match_cn.group(1)
@@ -66,7 +63,6 @@ def extract_sort_key(text):
     except ValueError:
       pass
 
-  # 匹配英文 Article
   match_en = re.search(r"Article\s+(\d+)", text, re.IGNORECASE)
   if match_en:
     try:
@@ -78,7 +74,7 @@ def extract_sort_key(text):
 
 
 def init_database_from_excel():
-  """自动从同级目录的 Excel 初始化 SQLite 数据库，准确解析行列层级"""
+  """自动从同级目录的 Excel 初始化 SQLite 数据库，同时记录横向分类与纵向分类标签"""
   current_dir = os.path.dirname(os.path.abspath(__file__))
   excel_path = os.path.join(current_dir, "合规平台条文整理.xlsx")
 
@@ -91,6 +87,8 @@ def init_database_from_excel():
             region TEXT,
             category TEXT,
             law_title TEXT,
+            sub_cat_0 TEXT,
+            sub_cat_1 TEXT,
             content TEXT,
             sort_order INTEGER
         )
@@ -103,60 +101,77 @@ def init_database_from_excel():
   df_raw = pd.read_excel(excel_path, sheet_name=0, header=None)
   cursor.execute("DELETE FROM compliance_laws")
 
-  # 动态向上推导列归属：Row 0 是分类大类，Row 1 是法规全称名称
-  # 建立精准的列索引映射
-  region_mapping = {
-      3: ("中国", "法律"),
-      4: ("中国", "法律"),
-      5: ("中国", "法律"),
-      6: ("中国", "行政法规"),
-      7: ("中国", "行政法规"),
-      8: ("中国", "部门规章"),
-      9: ("中国", "部门规章"),
-      10: ("中国", "部门规章"),
-      11: ("中国", "规范性文件"),
-      12: ("中国", "行业特别规定"),
-      13: ("中国", "配套操作指引"),
-      14: ("中国", "配套操作指引"),
-      15: ("欧盟", "欧盟-条例"),
-      16: ("欧盟", "欧盟-次级立法"),
-      17: ("欧盟", "欧盟-次级立法"),
-      18: ("欧盟", "欧盟-次级立法"),
-      19: ("欧盟", "欧盟-次级立法"),
-      20: ("欧盟", "欧盟-次级立法"),
-      21: ("欧盟", "欧盟-指南/建议"),
-      22: ("欧盟", "欧盟-指南/建议"),
-      23: ("美国", "美国-国家安全层面"),
-      24: ("美国", "美国-联邦层面"),
-      25: ("美国", "加州"),
-  }
+  # 动态前向填充横向分类（第0行）和纵向分类（第0列、第1列）
+  categories_row = df_raw.iloc[0].ffill()
+  titles_row = df_raw.iloc[1]
 
-  for col_idx, (region, category) in region_mapping.items():
-    if col_idx < len(df_raw.columns):
-      # 【核心修正】：Row 1 才是真正的法律法规名称（带《》或正式名称）
-      law_title = str(df_raw.iloc[1, col_idx]).strip()
-      if not law_title or law_title == "nan":
-        # 如果Row 1为空，尝试取Row 0
-        law_title = str(df_raw.iloc[0, col_idx]).strip()
-      if not law_title or law_title == "nan":
-        continue
+  col0_ffill = df_raw.iloc[:, 0].ffill()
+  col1_ffill = df_raw.iloc[:, 1].ffill()
 
-      # 从 Row 2 开始读取下属条文内容
-      for row_idx in range(2, len(df_raw)):
-        cell_val = df_raw.iloc[row_idx, col_idx]
-        if pd.notna(cell_val):
-          # 智能拆分可能包含多个 Article / 条款的长文本
-          split_contents = parse_and_split_content(cell_val)
-          for content_str in split_contents:
-            if content_str and content_str != "nan":
-              sort_val = extract_sort_key(content_str)
-              cursor.execute(
-                  """
-                            INSERT INTO compliance_laws (region, category, law_title, content, sort_order)
-                            VALUES (?, ?, ?, ?, ?)
-                        """,
-                  (region, category, law_title, content_str, sort_val),
-              )
+  # 遍历从第 3 列开始的所有法规列
+  for col_idx in range(3, len(df_raw.columns)):
+    cat_name = str(categories_row.iloc[col_idx]).strip()
+    law_title = str(titles_row.iloc[col_idx]).strip()
+
+    if not law_title or law_title == "nan":
+      continue
+
+    region = "中国"
+    if "欧盟" in cat_name:
+      region = "欧盟"
+    elif "美国" in cat_name:
+      region = "美国"
+
+    category = cat_name if cat_name and cat_name != "nan" else "通用效力模块"
+
+    has_content = False
+    for row_idx in range(2, len(df_raw)):
+      cell_val = df_raw.iloc[row_idx, col_idx]
+
+      # 获取纵向分类标签（第0列和第1列对应的纵向指引）
+      s0 = str(col0_ffill.iloc[row_idx]).strip()
+      s1 = str(col1_ffill.iloc[row_idx]).strip()
+      sub_c0 = s0 if s0 and s0 != "nan" else ""
+      sub_c1 = s1 if s1 and s1 != "nan" else ""
+
+      if pd.notna(cell_val):
+        split_contents = parse_and_split_content(cell_val)
+        for content_str in split_contents:
+          if content_str and content_str != "nan":
+            has_content = True
+            sort_val = extract_sort_key(content_str)
+            cursor.execute(
+                """
+                        INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                (
+                    region,
+                    category,
+                    law_title,
+                    sub_c0,
+                    sub_c1,
+                    content_str,
+                    sort_val,
+                ),
+            )
+
+    if not has_content:
+      cursor.execute(
+          """
+                INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+          (
+              region,
+              category,
+              law_title,
+              "暂无分类",
+              "暂无指引",
+              "（该法规条文正在整理补充中，敬请期待...）",
+              999,
+          ),
+      )
 
   conn.commit()
   conn.close()
@@ -207,29 +222,29 @@ else:
 
     st.sidebar.markdown("---")
 
-    # 查询筛选结果
     if selected_region == "全部" and selected_category == "全部":
       module_data_query = (
-          "SELECT region, category, law_title, content FROM compliance_laws"
-          " ORDER BY region, category, sort_order"
+          "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content"
+          " FROM compliance_laws ORDER BY region, category, sort_order"
       )
       module_data_params = ()
     elif selected_region == "全部":
       module_data_query = (
-          "SELECT region, category, law_title, content FROM compliance_laws"
-          " WHERE category = ? ORDER BY region, sort_order"
+          "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content"
+          " FROM compliance_laws WHERE category = ? ORDER BY region, sort_order"
       )
       module_data_params = (selected_category,)
     elif selected_category == "全部":
       module_data_query = (
-          "SELECT region, category, law_title, content FROM compliance_laws"
-          " WHERE region = ? ORDER BY category, sort_order"
+          "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content"
+          " FROM compliance_laws WHERE region = ? ORDER BY category, sort_order"
       )
       module_data_params = (selected_region,)
     else:
       module_data_query = (
-          "SELECT region, category, law_title, content FROM compliance_laws"
-          " WHERE region = ? AND category = ? ORDER BY sort_order"
+          "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content"
+          " FROM compliance_laws WHERE region = ? AND category = ? ORDER BY"
+          " sort_order"
       )
       module_data_params = (selected_region, selected_category)
 
@@ -239,11 +254,10 @@ else:
 
     st.subheader(
         f"📂 当前检索模块：辖区 [{selected_region}] | 模块 [{selected_category}]"
-        f" （共找到 {len(module_df)} 条相关条文）"
+        f" （共找到 {len(module_df)} 部/条合规文件）"
     )
     st.markdown("---")
 
-    # 按法规名称（作为提纲主标题）分组展示
     grouped = module_df.groupby("law_title")
 
     for law_title, group in grouped:
@@ -263,25 +277,36 @@ else:
         st.markdown("---")
 
         for idx, row in group.reset_index().iterrows():
+          sc0 = row["sub_cat_0"]
+          sc1 = row["sub_cat_1"]
+          # 醒目展示纵向分类标签指引
+          if sc0 or sc1:
+            tag_str = (
+                f"🏷️ **分类指引维度：** `{sc0}`"
+                + (f" ➔ `{sc1}`" if sc1 else "")
+            )
+            st.markdown(tag_str)
           st.text(row["content"])
           st.markdown("---")
 
   else:
     st.sidebar.markdown("---")
     keyword = st.sidebar.text_input(
-        "请输入要检索的关键词（如：出境、分类分级、敏感个人信息、GDPR等）"
+        "请输入要检索的关键词（如：出境、数据定性、敏感个人信息、GDPR等）"
     )
 
     if keyword:
       search_query = """
-                SELECT region, category, law_title, content 
+                SELECT region, category, law_title, sub_cat_0, sub_cat_1, content 
                 FROM compliance_laws 
-                WHERE content LIKE ? OR law_title LIKE ? OR category LIKE ?
+                WHERE content LIKE ? OR law_title LIKE ? OR category LIKE ? OR sub_cat_0 LIKE ? OR sub_cat_1 LIKE ?
                 ORDER BY region, category, sort_order
             """
       wildcard = f"%{keyword}%"
       results_df = pd.read_sql(
-          search_query, conn, params=(wildcard, wildcard, wildcard)
+          search_query,
+          conn,
+          params=(wildcard, wildcard, wildcard, wildcard, wildcard),
       )
 
       st.subheader(f"🔍 关键词 “{keyword}” 的检索结果")
@@ -296,6 +321,14 @@ else:
           st.markdown(f"**所属辖区：** {region_name} | **分类模块：** {cat_name}")
           st.markdown("---")
           for idx, row in group.reset_index().iterrows():
+            sc0 = row["sub_cat_0"]
+            sc1 = row["sub_cat_1"]
+            if sc0 or sc1:
+              tag_str = (
+                  f"🏷️ **分类指引维度：** `{sc0}`"
+                  + (f" ➔ `{sc1}`" if sc1 else "")
+              )
+              st.markdown(tag_str)
             st.text(row["content"])
             st.markdown("---")
     else:
