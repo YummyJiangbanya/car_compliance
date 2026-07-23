@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 import pandas as pd
 import streamlit as st
@@ -13,22 +14,59 @@ st.set_page_config(
 DB_FILE = "car_compliance.db"
 
 
+def extract_article_number(text):
+  """提取文本中的条款编号（如“第二条”、“第14条”），用于精准排序"""
+  match = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
+  if match:
+    num_str = match.group(1)
+    # 简单的汉字数字转阿拉伯数字映射
+    mapping = {
+        "一": 1,
+        "二": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+        "十": 10,
+        "十一": 11,
+        "十二": 12,
+        "十三": 13,
+        "十四": 14,
+        "十五": 15,
+        "十六": 16,
+        "十七": 17,
+        "十八": 18,
+        "十九": 19,
+        "二十": 20,
+    }
+    if num_str in mapping:
+      return mapping[num_str]
+    try:
+      return int(num_str)
+    except ValueError:
+      return 999
+  return 999
+
+
 def init_database_from_excel():
-  """自动从同级目录的 Excel 初始化 SQLite 数据库，确保所有完整信息不丢失"""
+  """自动从同级目录的 Excel 初始化 SQLite 数据库"""
   current_dir = os.path.dirname(os.path.abspath(__file__))
   excel_path = os.path.join(current_dir, "合规平台条文整理.xlsx")
 
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
 
-  # 创建合规条目表
   cursor.execute("""
         CREATE TABLE IF NOT EXISTS compliance_laws (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             region TEXT,
             category TEXT,
             law_title TEXT,
-            content TEXT
+            content TEXT,
+            sort_order INTEGER
         )
     """)
 
@@ -36,36 +74,9 @@ def init_database_from_excel():
     conn.close()
     return False
 
-  # 读取原始表格
   df_raw = pd.read_excel(excel_path, sheet_name=0, header=None)
-
-  # 清空旧数据以防重复插入
   cursor.execute("DELETE FROM compliance_laws")
 
-  # 向右扫描合并表头（处理 Excel 跨列单元格标题只有左侧有文字的情况）
-  current_category_name = ""
-  current_region_name = ""
-
-  # 根据表格结构精准映射列索引
-  # 遍历每一列，如果第一行有大类名称则更新，如果是 nan 则继承左侧的分类
-  column_meta = {}
-  active_region = "中国"
-  active_cat = "法律"
-
-  for col_idx in range(len(df_raw.columns)):
-    val = df_raw.iloc[0, col_idx]
-    if pd.notna(val):
-      title_str = str(val).strip()
-      if "-" in title_str:
-        parts = title_str.split("-", 1)
-        active_region = parts[0].strip()
-        active_cat = parts[1].strip()
-      else:
-        active_cat = title_str
-    # 建立映射
-    column_meta[col_idx] = (active_region, active_cat)
-
-  # 手工校准标准列映射以确保万无一失
   region_mapping = {
       3: ("中国", "法律"),
       4: ("中国", "法律"),
@@ -98,18 +109,18 @@ def init_database_from_excel():
       if not law_title or law_title == "nan":
         continue
 
-      # 收集该列下所有的非空单元格内容作为条文
       for row_idx in range(1, len(df_raw)):
         cell_val = df_raw.iloc[row_idx, col_idx]
         if pd.notna(cell_val):
           content_str = str(cell_val).strip()
           if content_str and content_str != "nan":
+            sort_val = extract_article_number(content_str)
             cursor.execute(
                 """
-                        INSERT INTO compliance_laws (region, category, law_title, content)
-                        VALUES (?, ?, ?, ?)
+                        INSERT INTO compliance_laws (region, category, law_title, content, sort_order)
+                        VALUES (?, ?, ?, ?, ?)
                     """,
-                (region, category, law_title, content_str),
+                (region, category, law_title, content_str, sort_val),
             )
 
   conn.commit()
@@ -117,14 +128,13 @@ def init_database_from_excel():
   return True
 
 
-# 每次运行强制初始化并加载数据
 success = init_database_from_excel()
 
 # ==================== 页面前端设计 ====================
 st.title("🚗 智能网联汽车与跨国数据合规检索平台")
 st.markdown(
     "> 本平台集成 **中国、欧盟、美国** 三大核心司法辖区的完整法律法规、行政法规、部门规章及行业指南，"
-    "全面对标北大法宝多维分类与目录导航模式，支持点击具体法规名称无损跳转与全文展示。"
+    "支持多维地理与效力模块化导航，条文按序号自动排序并支持精准全文检索。"
 )
 
 if not success:
@@ -134,7 +144,6 @@ if not success:
       f" {os.path.join(current_dir, '合规平台条文整理.xlsx')}）。"
   )
 else:
-  # 侧边栏：北大法宝风格的树状与模块化导航
   st.sidebar.header("⚖️ 北大法宝风格法规导航")
   nav_mode = st.sidebar.radio(
       "选择浏览模式", ["📚 按地理与效力模块浏览", "🔍 全文关键词精准检索"]
@@ -147,7 +156,6 @@ else:
     regions = ["全部", "中国", "欧盟", "美国"]
     selected_region = st.sidebar.selectbox("📍 选择司法辖区 (地理层面)", regions)
 
-    # 动态获取对应的效力层级/分类（同类规章归到同一个模块）
     if selected_region == "全部":
       categories_df = pd.read_sql(
           "SELECT DISTINCT category FROM compliance_laws", conn
@@ -159,73 +167,34 @@ else:
           params=(selected_region,),
       )
 
-    categories = categories_df["category"].tolist()
+    categories = ["全部"] + categories_df["category"].tolist()
     selected_category = st.sidebar.selectbox("📂 选择同类效力模块", categories)
 
-    # 获取该模块下的所有具体法规名称列表（供点击跳转）
-    laws_df = pd.read_sql(
-        "SELECT DISTINCT law_title FROM compliance_laws WHERE region = ? AND"
-        " category = ?",
-        conn,
-        params=(
-            selected_region if selected_region != "All" else regions[1],
-            selected_category,
-        )
-        if selected_region != "全部"
-        else ("中国", selected_category),  # 简化默认处理
-    )
-
-    # 如果选了全部区域，则按区域和分类组合查询
-    if selected_region == "全部":
-      laws_df = pd.read_sql(
-          "SELECT DISTINCT region, law_title FROM compliance_laws WHERE"
-          " category = ?",
-          conn,
-          params=(selected_category,),
-      )
-      law_options = [
-          f"[{row['region']}] {row['law_title']}"
-          for _, row in laws_df.iterrows()
-      ]
-    else:
-      laws_df = pd.read_sql(
-          "SELECT DISTINCT law_title FROM compliance_laws WHERE region = ? AND"
-          " category = ?",
-          conn,
-          params=(selected_region, selected_category),
-      )
-      law_options = laws_df["law_title"].tolist()
-
     st.sidebar.markdown("---")
-    st.sidebar.markdown(f"📖 **当前模块: {selected_category}**")
-    st.sidebar.markdown("请点击下方法规名称直接跳转查看详情：")
 
-    # 侧边栏生成法规快速跳转按钮或选择框
-    if law_options:
-      selected_law_jump = st.sidebar.radio("选择要跳转的法规文件", law_options)
-    else:
-      selected_law_jump = None
-
-    # 主界面展示：按同类模块归类，并高亮展示用户点击跳转的法规
-    st.subheader(
-        f"📂 当前模块归档：{selected_category} （共包含"
-        f" {len(law_options)} 部法规文件）"
-    )
-    st.markdown(
-        "---"
-    )
-
-    # 获取当前分类下的所有具体法规及完整内容
-    if selected_region == "全部":
+    # 主界面展示模块内容
+    if selected_region == "全部" and selected_category == "全部":
       module_data_query = (
           "SELECT region, category, law_title, content FROM compliance_laws"
-          " WHERE category = ?"
+          " ORDER BY region, category, sort_order"
+      )
+      module_data_params = ()
+    elif selected_region == "全部":
+      module_data_query = (
+          "SELECT region, category, law_title, content FROM compliance_laws"
+          " WHERE category = ? ORDER BY region, sort_order"
       )
       module_data_params = (selected_category,)
+    elif selected_category == "全部":
+      module_data_query = (
+          "SELECT region, category, law_title, content FROM compliance_laws"
+          " WHERE region = ? ORDER BY category, sort_order"
+      )
+      module_data_params = (selected_region,)
     else:
       module_data_query = (
           "SELECT region, category, law_title, content FROM compliance_laws"
-          " WHERE region = ? AND category = ?"
+          " WHERE region = ? AND category = ? ORDER BY sort_order"
       )
       module_data_params = (selected_region, selected_category)
 
@@ -233,34 +202,34 @@ else:
         module_data_query, conn, params=module_data_params
     )
 
-    # 按法规名称分组展示，实现“点击/定位跳转”效果
+    st.subheader(
+        f"📂 当前检索模块：辖区 [{selected_region}] | 模块 [{selected_category}]"
+        f" （共找到 {len(module_df)} 条相关条文）"
+    )
+    st.markdown("---")
+
+    # 按法规名称分组展示
     grouped = module_df.groupby("law_title")
 
     for law_title, group in grouped:
-      # 判断是否是用户在侧边栏选中的那一部法规，如果是则默认展开并醒目标记
-      is_target = False
-      if selected_law_jump:
-        if law_title in selected_law_jump:
-          is_target = True
-
+      region_name = group.iloc[0]["region"]
+      cat_name = group.iloc[0]["category"]
       expander_label = (
-          f"📜 【点击跳转/展开】{law_title} （包含 {len(group)}"
-          " 项核心条款与细则）"
+          f"📜 【{region_name} - {cat_name}】 {law_title} （包含"
+          f" {len(group)} 项条款）"
       )
-      with st.expander(expander_label, expanded=is_target):
+
+      with st.expander(expander_label):
         st.markdown(
-            f"**所属辖区：** {group.iloc[0]['region']}  |  **效力层级模块：**"
-            f" **{selected_category}**"
+            f"**所属辖区：** {region_name}  |  **效力层级模块：** **{cat_name}**"
         )
         st.markdown(f"**法规全称：** **{law_title}**")
         st.markdown("---")
-        st.markdown("### 📋 完整法规条文与内容（未做任何省略）:")
 
-        # 循环展示该法规在表格中对应的每一个具体条文/单元格内容
+        # 循环展示该法规对应的内容，已按条款序号从小到大排序
         for idx, row in group.reset_index().iterrows():
-          st.markdown(f"**【条款 / 细则 {idx+1}】**")
           st.text(row["content"])
-          st.markdown("")
+          st.markdown("---")
 
   else:
     st.sidebar.markdown("---")
@@ -273,6 +242,7 @@ else:
                 SELECT region, category, law_title, content 
                 FROM compliance_laws 
                 WHERE content LIKE ? OR law_title LIKE ? OR category LIKE ?
+                ORDER BY region, category, sort_order
             """
       wildcard = f"%{keyword}%"
       results_df = pd.read_sql(
@@ -292,7 +262,6 @@ else:
           )
           st.markdown(f"**法规全称：** **{row['law_title']}**")
           st.markdown("---")
-          st.markdown("**详细条文内容：**")
           st.text(row["content"])
     else:
       st.info("👈 请在左侧侧边栏输入关键词开始进行全文精准检索。")
