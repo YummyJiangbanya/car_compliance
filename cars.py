@@ -19,7 +19,6 @@ def extract_article_number(text):
   match = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
   if match:
     num_str = match.group(1)
-    # 简单的汉字数字转阿拉伯数字映射
     mapping = {
         "一": 1,
         "二": 2,
@@ -134,7 +133,7 @@ success = init_database_from_excel()
 st.title("🚗 智能网联汽车与跨国数据合规检索平台")
 st.markdown(
     "> 本平台集成 **中国、欧盟、美国** 三大核心司法辖区的完整法律法规、行政法规、部门规章及行业指南，"
-    "支持多维地理与效力模块化导航，条文按序号自动排序并支持精准全文检索。"
+    "支持多维地理与效力模块化导航，法规名称提纲挈领置顶，下属条文按序号自动排序展示。"
 )
 
 if not success:
@@ -172,7 +171,7 @@ else:
 
     st.sidebar.markdown("---")
 
-    # 主界面展示模块内容
+    # 查询筛选结果
     if selected_region == "全部" and selected_category == "全部":
       module_data_query = (
           "SELECT region, category, law_title, content FROM compliance_laws"
@@ -208,25 +207,29 @@ else:
     )
     st.markdown("---")
 
-    # 按法规名称分组展示
+    # 按法规名称（《》名称作为提纲主标题）分组展示
     grouped = module_df.groupby("law_title")
 
     for law_title, group in grouped:
       region_name = group.iloc[0]["region"]
       cat_name = group.iloc[0]["category"]
+
+      # 将法规名称（大标题）作为折叠面板的核心置顶标题，下属所有条文在内部按顺序展开
       expander_label = (
           f"📜 【{region_name} - {cat_name}】 {law_title} （包含"
-          f" {len(group)} 项条款）"
+          f" {len(group)} 项细则条款）"
       )
 
-      with st.expander(expander_label):
+      with st.expander(expander_label, expanded=True):
         st.markdown(
-            f"**所属辖区：** {region_name}  |  **效力层级模块：** **{cat_name}**"
+            f"### 📌 法规全称：**{law_title}**"
+        )  # 再次在内部醒目强调法律法规名称作为提纲
+        st.markdown(
+            f"**所属司法辖区：** {region_name}  |  **效力层级模块：** {cat_name}"
         )
-        st.markdown(f"**法规全称：** **{law_title}**")
         st.markdown("---")
+        st.markdown("**具体条文内容（已按序号正序排列）：**")
 
-        # 循环展示该法规对应的内容，已按条款序号从小到大排序
         for idx, row in group.reset_index().iterrows():
           st.text(row["content"])
           st.markdown("---")
@@ -252,17 +255,17 @@ else:
       st.subheader(f"🔍 关键词 “{keyword}” 的检索结果")
       st.markdown(f"为您匹配到 **{len(results_df)}** 条相关合规内容：")
 
-      for idx, row in results_df.iterrows():
-        with st.expander(
-            f"【{row['region']} - {row['category']}】 {row['law_title']}"
-        ):
-          st.markdown(
-              f"**所属辖区：** {row['region']} | **分类模块：**"
-              f" {row['category']}"
-          )
-          st.markdown(f"**法规全称：** **{row['law_title']}**")
+      grouped_search = results_df.groupby("law_title")
+      for law_title, group in grouped_search:
+        region_name = group.iloc[0]["region"]
+        cat_name = group.iloc[0]["category"]
+        with st.expander(f"【{region_name} - {cat_name}】 {law_title}"):
+          st.markdown(f"### 📌 法规全称：**{law_title}**")
+          st.markdown(f"**所属辖区：** {region_name} | **分类模块：** {cat_name}")
           st.markdown("---")
-          st.text(row["content"])
+          for idx, row in group.reset_index().iterrows():
+            st.text(row["content"])
+            st.markdown("---")
     else:
       st.info("👈 请在左侧侧边栏输入关键词开始进行全文精准检索。")
 
