@@ -14,11 +14,29 @@ st.set_page_config(
 DB_FILE = "car_compliance.db"
 
 
-def extract_article_number(text):
-  """提取文本中的条款编号（如“第二条”、“第14条”），用于精准排序"""
-  match = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
-  if match:
-    num_str = match.group(1)
+def parse_and_split_content(cell_text):
+  """针对欧盟及长文本单元格，按 Article / 条 / 细则关键词进行智能拆分，确保每一条独立展示"""
+  if not cell_text or cell_text == "nan":
+    return []
+
+  text = str(cell_text).strip()
+  # 匹配常见条款前缀，如 "Article 4", "Article 2", "第X条", "Step 1" 等
+  # 使用正则在不丢失内容的前提下分割多个条款段落
+  pattern = r"(?=(?:Article\s+\d+|第[零一二三四五六七八九十百0-9]+条|Step\s+\d+))"
+  parts = re.split(pattern, text)
+
+  cleaned_parts = [p.strip() for p in parts if p.strip()]
+  if not cleaned_parts:
+    return [text]
+  return cleaned_parts
+
+
+def extract_sort_key(text):
+  """提取条款编号用于正序排序"""
+  # 匹配中文字数或数字条目
+  match_cn = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
+  if match_cn:
+    num_str = match_cn.group(1)
     mapping = {
         "一": 1,
         "二": 2,
@@ -46,12 +64,21 @@ def extract_article_number(text):
     try:
       return int(num_str)
     except ValueError:
-      return 999
+      pass
+
+  # 匹配英文 Article
+  match_en = re.search(r"Article\s+(\d+)", text, re.IGNORECASE)
+  if match_en:
+    try:
+      return int(match_en.group(1))
+    except ValueError:
+      pass
+
   return 999
 
 
 def init_database_from_excel():
-  """自动从同级目录的 Excel 初始化 SQLite 数据库"""
+  """自动从同级目录的 Excel 初始化 SQLite 数据库，准确解析行列层级"""
   current_dir = os.path.dirname(os.path.abspath(__file__))
   excel_path = os.path.join(current_dir, "合规平台条文整理.xlsx")
 
@@ -76,6 +103,8 @@ def init_database_from_excel():
   df_raw = pd.read_excel(excel_path, sheet_name=0, header=None)
   cursor.execute("DELETE FROM compliance_laws")
 
+  # 动态向上推导列归属：Row 0 是分类大类，Row 1 是法规全称名称
+  # 建立精准的列索引映射
   region_mapping = {
       3: ("中国", "法律"),
       4: ("中国", "法律"),
@@ -104,23 +133,30 @@ def init_database_from_excel():
 
   for col_idx, (region, category) in region_mapping.items():
     if col_idx < len(df_raw.columns):
-      law_title = str(df_raw.iloc[0, col_idx]).strip()
+      # 【核心修正】：Row 1 才是真正的法律法规名称（带《》或正式名称）
+      law_title = str(df_raw.iloc[1, col_idx]).strip()
+      if not law_title or law_title == "nan":
+        # 如果Row 1为空，尝试取Row 0
+        law_title = str(df_raw.iloc[0, col_idx]).strip()
       if not law_title or law_title == "nan":
         continue
 
-      for row_idx in range(1, len(df_raw)):
+      # 从 Row 2 开始读取下属条文内容
+      for row_idx in range(2, len(df_raw)):
         cell_val = df_raw.iloc[row_idx, col_idx]
         if pd.notna(cell_val):
-          content_str = str(cell_val).strip()
-          if content_str and content_str != "nan":
-            sort_val = extract_article_number(content_str)
-            cursor.execute(
-                """
-                        INSERT INTO compliance_laws (region, category, law_title, content, sort_order)
-                        VALUES (?, ?, ?, ?, ?)
-                    """,
-                (region, category, law_title, content_str, sort_val),
-            )
+          # 智能拆分可能包含多个 Article / 条款的长文本
+          split_contents = parse_and_split_content(cell_val)
+          for content_str in split_contents:
+            if content_str and content_str != "nan":
+              sort_val = extract_sort_key(content_str)
+              cursor.execute(
+                  """
+                            INSERT INTO compliance_laws (region, category, law_title, content, sort_order)
+                            VALUES (?, ?, ?, ?, ?)
+                        """,
+                  (region, category, law_title, content_str, sort_val),
+              )
 
   conn.commit()
   conn.close()
@@ -133,7 +169,7 @@ success = init_database_from_excel()
 st.title("🚗 智能网联汽车与跨国数据合规检索平台")
 st.markdown(
     "> 本平台集成 **中国、欧盟、美国** 三大核心司法辖区的完整法律法规、行政法规、部门规章及行业指南，"
-    "支持多维地理与效力模块化导航，法规名称提纲挈领置顶，下属条文按序号自动排序展示。"
+    "支持北大法宝风格模块化导航与多维精准检索。"
 )
 
 if not success:
@@ -207,28 +243,24 @@ else:
     )
     st.markdown("---")
 
-    # 按法规名称（《》名称作为提纲主标题）分组展示
+    # 按法规名称（作为提纲主标题）分组展示
     grouped = module_df.groupby("law_title")
 
     for law_title, group in grouped:
       region_name = group.iloc[0]["region"]
       cat_name = group.iloc[0]["category"]
 
-      # 将法规名称（大标题）作为折叠面板的核心置顶标题，下属所有条文在内部按顺序展开
       expander_label = (
           f"📜 【{region_name} - {cat_name}】 {law_title} （包含"
-          f" {len(group)} 项细则条款）"
+          f" {len(group)} 项条款）"
       )
 
       with st.expander(expander_label, expanded=True):
-        st.markdown(
-            f"### 📌 法规全称：**{law_title}**"
-        )  # 再次在内部醒目强调法律法规名称作为提纲
+        st.markdown(f"### 📌 法规全称：**{law_title}**")
         st.markdown(
             f"**所属司法辖区：** {region_name}  |  **效力层级模块：** {cat_name}"
         )
         st.markdown("---")
-        st.markdown("**具体条文内容（已按序号正序排列）：**")
 
         for idx, row in group.reset_index().iterrows():
           st.text(row["content"])
