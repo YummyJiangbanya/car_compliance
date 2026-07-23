@@ -184,7 +184,7 @@ success = init_database_from_excel()
 st.title("🚗 智能网联汽车与跨国数据合规检索平台")
 st.markdown(
     "> 本平台集成 **中国、欧盟、美国** 三大核心司法辖区的完整法律法规、行政法规、部门规章及行业指南，"
-    "支持北大法宝风格模块化导航与多维精准检索。"
+    "支持模块化导航与多维精准检索。"
 )
 
 if not success:
@@ -194,7 +194,7 @@ if not success:
       f" {os.path.join(current_dir, '合规平台条文整理.xlsx')}）。"
   )
 else:
-  st.sidebar.header("⚖️ 北大法宝风格法规导航")
+  st.sidebar.header("⚖️导航")
   nav_mode = st.sidebar.radio(
       "选择浏览模式", ["📚 按地理与效力模块浏览", "🔍 全文关键词精准检索"]
   )
