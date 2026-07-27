@@ -7,29 +7,44 @@ import streamlit as st
 # ==================== 1. 页面配置 ====================
 st.set_page_config(
     page_title="智能网联汽车与跨国数据合规检索平台",
-    page_icon="🏛️", # 换成更有学术/法律感的图标
+    page_icon="⚖️", 
     layout="wide",
 )
 
-# ==================== 2. 注入知网风格 CSS ====================
-# 参考知网的学术蓝与简约灰白配色
+# ==================== 2. 注入北大法宝风格 CSS ====================
 CUSTOM_CSS = """
 <style>
-    /* 全局字体与背景 */
+    /* 全局字体 */
     html, body, [class*="css"] {
-        font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     }
     
-    /* 标题颜色 (知网主题蓝) */
-    h1, h2, h3, h4 {
-        color: #2b579a !important; 
+    /* 更改整个应用的背景色为浅灰蓝色，打破大面积留白 */
+    [data-testid="stAppViewContainer"] {
+        background-color: #f0f2f6; 
+    }
+    
+    /* 顶部标题区卡片化 */
+    .header-card {
+        background-color: #ffffff;
+        padding: 25px 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border-top: 5px solid #1a5276; /* 北大蓝强调色 */
+        margin-bottom: 25px;
+    }
+    
+    /* 标题颜色 */
+    h1, h2, h3 {
+        color: #1a5276 !important; 
         font-weight: 600 !important;
     }
     
     /* 侧边栏样式优化 */
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
+        background-color: #ffffff;
         border-right: 1px solid #e0e0e0;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.02);
     }
     
     /* Expander (折叠面板) 拟物卡片化 */
@@ -37,49 +52,39 @@ CUSTOM_CSS = """
         background-color: #ffffff;
         border: 1px solid #e6e9f0;
         border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         margin-bottom: 15px;
     }
     div[data-testid="stExpander"] summary {
-        background-color: #fbfbfb;
-        color: #333333;
-        font-weight: bold;
+        background-color: #fafbfc;
+        color: #2c3e50;
+        font-weight: 600;
+        padding: 10px 15px;
     }
     
-    /* 自定义分类标签 (类似知网的关键词 Tag) */
-    .cnki-tag {
+    /* 自定义分类标签 */
+    .law-tag {
         display: inline-block;
         background-color: #e8f0fe;
-        color: #1a73e8;
-        padding: 4px 10px;
-        border-radius: 4px;
+        color: #1a5276;
+        padding: 4px 12px;
+        border-radius: 15px;
         font-size: 0.85em;
-        font-weight: bold;
-        margin-bottom: 8px;
-        border: 1px solid #d2e3fc;
+        font-weight: 600;
+        margin-bottom: 10px;
+        border: 1px solid #c6dafc;
     }
     
     /* 法条正文阅读框 */
     .law-content {
-        background-color: #fdfdfd;
-        border-left: 4px solid #2b579a;
-        padding: 12px 18px;
-        color: #4a4a4a;
-        line-height: 1.7;
+        background-color: #fafafa;
+        border-left: 4px solid #1a5276;
+        padding: 15px 20px;
+        color: #444444;
+        line-height: 1.8;
         font-size: 0.95em;
         margin-bottom: 10px;
         text-align: justify;
-    }
-    
-    /* 顶部引导语样式 */
-    .hero-text {
-        font-size: 1.1em;
-        color: #555;
-        background: #f4f6f9;
-        padding: 15px;
-        border-radius: 5px;
-        border-left: 5px solid #2b579a;
-        margin-bottom: 25px;
     }
 </style>
 """
@@ -87,7 +92,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 DB_FILE = "car_compliance.db"
 
-# ==================== 3. 核心处理函数 ====================
+# ==================== 3. 核心处理函数 (保持不变) ====================
 def parse_and_split_content(cell_text):
     if not cell_text or str(cell_text).strip() == "nan":
         return []
@@ -187,30 +192,34 @@ def init_database_from_excel():
 success = init_database_from_excel()
 
 # ==================== 4. 页面前端展示 ====================
-st.title("🏛️ 智能网联汽车跨国数据合规检索平台")
+# 使用 header-card 将头部包裹，形成类似主页 Banner 的感觉
 st.markdown(
-    '<div class="hero-text">'
-    '<b>欢迎使用本平台。</b><br>'
-    '本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的完整法律法规、行政法规、部门规章及行业指南，为您提供基于合规场景的模块化导航与多维精准检索支持。'
-    '</div>', 
+    """
+    <div class="header-card">
+        <h1 style='margin-top:0;'>⚖️ 智能网联汽车跨国数据合规平台</h1>
+        <p style='color:#555; font-size:1.05em; margin-bottom:0;'>
+        本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的合规指引，支持模块化导航与多维精准检索。<br>
+        致力于为车企出境数据合规提供一站式法律支撑。
+        </p>
+    </div>
+    """, 
     unsafe_allow_html=True
 )
 
 if not success:
     st.error("数据加载失败！请确保 `合规平台条文整理.xlsx` 与本项目代码在同一目录下。")
 else:
-    # --- 侧边栏设计 ---
-    st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Scale_of_justice_2.svg/512px-Scale_of_justice_2.svg.png", width=80) 
-    st.sidebar.header("检索导航")
+    # --- 侧边栏设计 (Emoji 更换为更严谨的图标) ---
+    st.sidebar.markdown("### 🧭 系统导航")
     nav_mode = st.sidebar.radio(
-        "选择浏览模式", ["📚 体系化模块浏览", "🔍 全文精准检索"]
+        "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索"]
     )
     st.sidebar.markdown("---")
 
     conn = sqlite3.connect(DB_FILE)
 
-    if nav_mode == "📚 体系化模块浏览":
-        selected_region = st.sidebar.selectbox("📍 司法辖区", ["全部", "中国", "欧盟", "美国"])
+    if nav_mode == "📑 体系化法律库":
+        selected_region = st.sidebar.selectbox("🌐 司法辖区", ["全部", "中国", "欧盟", "美国"])
 
         if selected_region == "全部":
             categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws", conn)
@@ -218,9 +227,8 @@ else:
             categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
 
         categories = ["全部"] + categories_df["category"].tolist()
-        selected_category = st.sidebar.selectbox("📂 效力模块", categories)
+        selected_category = st.sidebar.selectbox("📁 合规模块", categories)
 
-        # 动态查询构造
         query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
         conditions = []
         params = []
@@ -238,36 +246,32 @@ else:
         query += " ORDER BY region, category, sort_order"
         module_df = pd.read_sql(query, conn, params=tuple(params))
 
-        # 头部统计与结果展示
-        st.markdown(f"#### 检索结果概览")
-        st.caption(f"当前筛选：辖区 [{selected_region}] | 模块 [{selected_category}] —— 共计找到 **{len(module_df)}** 个合规条文片段")
-        st.markdown("---")
+        # 结果概览也采用轻量的卡片感
+        st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
+        st.write("")
 
         grouped = module_df.groupby("law_title")
 
         for law_title, group in grouped:
             region_name = group.iloc[0]["region"]
             cat_name = group.iloc[0]["category"]
-            expander_label = f"📖 【{region_name} - {cat_name}】 {law_title} ({len(group)} 条)"
+            expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
 
             with st.expander(expander_label, expanded=False):
                 st.markdown(f"#### {law_title}")
-                st.caption(f"**归属辖区：** {region_name} &nbsp;|&nbsp; **模块层级：** {cat_name}")
+                st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
                 
                 for idx, row in group.reset_index().iterrows():
                     sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
                     if sc0 or sc1:
                         tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
-                        # 使用 HTML 渲染自定义标签
-                        st.markdown(f'<span class="cnki-tag">🏷️ 场景维度：{tag_content}</span>', unsafe_allow_html=True)
+                        st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
                     
-                    # 使用 HTML 渲染知网文献式的正文框，替代原先丑陋的 st.text 等宽字体
                     st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
-                    st.write("") # 留白
 
     else:
-        keyword = st.sidebar.text_input("输入检索关键词", placeholder="如：数据出境、GDPR、敏感信息...")
-        st.sidebar.caption("支持模糊搜索相关法规条款或分类维度。")
+        keyword = st.sidebar.text_input("输入检索关键词", placeholder="如：数据出境、GDPR...")
+        st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
 
         if keyword:
             wildcard = f"%{keyword}%"
@@ -279,26 +283,23 @@ else:
             """
             results_df = pd.read_sql(search_query, conn, params=(wildcard,)*5)
 
-            st.markdown(f"#### 🔍 关键词匹配：<span style='color:#d93025'>“{keyword}”</span>", unsafe_allow_html=True)
-            st.caption(f"为您精准匹配到 **{len(results_df)}** 条相关合规内容：")
-            st.markdown("---")
+            st.markdown(f"**检索结果**：包含 <span style='color:#c0392b; font-weight:bold;'>“{keyword}”</span> 的内容共 **{len(results_df)}** 条", unsafe_allow_html=True)
+            st.write("")
 
             grouped_search = results_df.groupby("law_title")
             for law_title, group in grouped_search:
                 region_name, cat_name = group.iloc[0]["region"], group.iloc[0]["category"]
                 
-                with st.expander(f"📖 【{region_name} - {cat_name}】 {law_title}"):
+                with st.expander(f"📌 【{region_name}】 {law_title}"):
                     st.markdown(f"#### {law_title}")
                     for idx, row in group.reset_index().iterrows():
                         sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
                         if sc0 or sc1:
                             tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
-                            st.markdown(f'<span class="cnki-tag">🏷️ 场景维度：{tag_content}</span>', unsafe_allow_html=True)
+                            st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
                         
-                        # 在检索时高亮关键字 (增加阅读体验)
-                        highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#ffeb3b; font-weight:bold;'>{keyword}</span>")
+                        highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#ffeaa7; font-weight:bold;'>{keyword}</span>")
                         st.markdown(f'<div class="law-content">{highlighted_content}</div>', unsafe_allow_html=True)
-                        st.write("")
         else:
             st.info("👈 请在左侧侧边栏输入关键词以获取检索结果。")
 
