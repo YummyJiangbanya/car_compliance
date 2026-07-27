@@ -92,7 +92,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 DB_FILE = "car_compliance.db"
 
-# ==================== 3. 核心处理函数 (保持不变) ====================
+# ==================== 3. 核心处理函数 ====================
 def parse_and_split_content(cell_text):
     if not cell_text or str(cell_text).strip() == "nan":
         return []
@@ -209,10 +209,12 @@ st.markdown(
 if not success:
     st.error("数据加载失败！请确保 `合规平台条文整理.xlsx` 与本项目代码在同一目录下。")
 else:
-    # --- 侧边栏设计 (Emoji 更换为更严谨的图标) ---
+    # --- 侧边栏设计 ---
     st.sidebar.markdown("### 🧭 系统导航")
+    
+    # 【修改点】：添加了第三个模块选项
     nav_mode = st.sidebar.radio(
-        "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索"]
+        "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程"]
     )
     st.sidebar.markdown("---")
 
@@ -246,7 +248,6 @@ else:
         query += " ORDER BY region, category, sort_order"
         module_df = pd.read_sql(query, conn, params=tuple(params))
 
-        # 结果概览也采用轻量的卡片感
         st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
         st.write("")
 
@@ -269,7 +270,7 @@ else:
                     
                     st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
 
-    else:
+    elif nav_mode == "🔎 穿透式法规检索":
         keyword = st.sidebar.text_input("输入检索关键词", placeholder="如：数据出境、GDPR...")
         st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
 
@@ -302,5 +303,37 @@ else:
                         st.markdown(f'<div class="law-content">{highlighted_content}</div>', unsafe_allow_html=True)
         else:
             st.info("👈 请在左侧侧边栏输入关键词以获取检索结果。")
+
+    # 【修改点】：新增的出境全流程逻辑分支
+    elif nav_mode == "⏱️ 出境全流程":
+        st.markdown("### ⏱️ 数据出境全流程合规指引")
+        st.markdown("按照数据出境的生命周期，提供各阶段必须遵守的完整法律条文。")
+        
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        timeline_excel_path = os.path.join(current_dir, "全流程时间轴法规整理.xlsx")
+        
+        if not os.path.exists(timeline_excel_path):
+            st.warning(f"尚未找到时间轴数据文件。请确保 `全流程时间轴法规整理.xlsx` 已放置在 {current_dir} 目录下。")
+        else:
+            df_timeline = pd.read_excel(timeline_excel_path)
+            phases = ["出境前", "出境中", "出境后"]
+            tabs = st.tabs([f"📍 {phase}" for phase in phases])
+            
+            for i, phase in enumerate(phases):
+                with tabs[i]:
+                    if "阶段" in df_timeline.columns:
+                        phase_data = df_timeline[df_timeline["阶段"].str.contains(phase, na=False)]
+                        
+                        if phase_data.empty:
+                            st.info(f"暂无 {phase} 阶段的合规数据。")
+                        else:
+                            for idx, row in phase_data.iterrows():
+                                law_title = row.get("法规名称", "未命名法规")
+                                full_text = row.get("完整条款内容", "暂无内容")
+                                
+                                st.markdown(f"#### 📜 {law_title}")
+                                st.markdown(f'<div class="law-content">{full_text}</div>', unsafe_allow_html=True)
+                    else:
+                        st.error("Excel 表格中缺少名为 '阶段' 的列，无法进行时间轴分类。请检查表头名称。")
 
     conn.close()
