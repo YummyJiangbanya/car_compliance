@@ -137,6 +137,17 @@ def init_database_from_excel():
         )
     """)
 
+    # 新增：出境全流程专属数据表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS timeline_laws (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phase TEXT,
+            sub_phase TEXT,
+            law_title TEXT,
+            content TEXT
+        )
+    """)
+
     if not os.path.exists(excel_path):
         conn.close()
         return False
@@ -185,6 +196,32 @@ def init_database_from_excel():
                 (region, category, law_title, "暂无分类", "暂无指引", "（该法规条文正在整理补充中，敬请期待...）", 999)
             )
 
+    # 尝试加载第二张表（或适配含有出境全流程的Sheet），如果您的出境全流程放在了特定的Sheet中，可在此自动读取
+    try:
+        excel_sheets = pd.ExcelFile(excel_path).sheet_names
+        target_sheet = None
+        for sheet in excel_sheets:
+            if "流程" in sheet or "时间轴" in sheet or "出境" in sheet:
+                target_sheet = sheet
+                break
+        
+        if target_sheet:
+            df_timeline = pd.read_excel(excel_path, sheet_name=target_sheet)
+            cursor.execute("DELETE FROM timeline_laws")
+            for _, row in df_timeline.iterrows():
+                # 兼容表格字段：阶段、环节/子阶段、法规名称/标题、完整条款内容
+                phase = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else "未分类"
+                sub_phase = str(row.iloc[1]).strip() if len(row) > 1 and pd.notna(row.iloc[1]) else ""
+                law_title = str(row.iloc[2]).strip() if len(row) > 2 and pd.notna(row.iloc[2]) else "相关合规要求"
+                content = str(row.iloc[3]).strip() if len(row) > 3 and pd.notna(row.iloc[3]) else str(row.iloc[-1])
+                
+                cursor.execute(
+                    "INSERT INTO timeline_laws (phase, sub_phase, law_title, content) VALUES (?, ?, ?, ?)",
+                    (phase, sub_phase, law_title, content)
+                )
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
     return True
@@ -192,7 +229,6 @@ def init_database_from_excel():
 success = init_database_from_excel()
 
 # ==================== 4. 页面前端展示 ====================
-# 使用 header-card 将头部包裹，形成类似主页 Banner 的感觉
 st.markdown(
     """
     <div class="header-card">
@@ -212,7 +248,6 @@ else:
     # --- 侧边栏设计 ---
     st.sidebar.markdown("### 🧭 系统导航")
     
-    # 【修改点】：添加了第三个模块选项
     nav_mode = st.sidebar.radio(
         "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程"]
     )
@@ -304,36 +339,44 @@ else:
         else:
             st.info("👈 请在左侧侧边栏输入关键词以获取检索结果。")
 
-    # 【修改点】：新增的出境全流程逻辑分支
     elif nav_mode == "⏱️ 出境全流程":
         st.markdown("### ⏱️ 数据出境全流程合规指引")
-        st.markdown("按照数据出境的生命周期，提供各阶段必须遵守的完整法律条文。")
-        
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        timeline_excel_path = os.path.join(current_dir, "全流程时间轴法规整理.xlsx")
-        
-        if not os.path.exists(timeline_excel_path):
-            st.warning(f"尚未找到时间轴数据文件。请确保 `全流程时间轴法规整理.xlsx` 已放置在 {current_dir} 目录下。")
+        st.markdown("按照数据出境的生命周期（**出境前、出境中、出境后**），为您全景展示各环节对应的合规要求、具体条款及操作指引。")
+        st.write("")
+
+        # 从数据库中读取时间轴/出境全流程数据
+        timeline_df = pd.read_sql("SELECT phase, sub_phase, law_title, content FROM timeline_laws", conn)
+
+        if timeline_df.empty:
+            st.warning("⚠️ 暂未检测到“出境全流程”的明细数据。请检查您的Excel表格中是否包含对应维度的内容，或确认数据已被成功导入数据库。")
         else:
-            df_timeline = pd.read_excel(timeline_excel_path)
+            # 设定固定的三个主阶段标签页
             phases = ["出境前", "出境中", "出境后"]
-            tabs = st.tabs([f"📍 {phase}" for phase in phases])
-            
-            for i, phase in enumerate(phases):
+            tabs = st.tabs([f"📍 {p}" for p in phases])
+
+            for i, phase_name in enumerate(phases):
                 with tabs[i]:
-                    if "阶段" in df_timeline.columns:
-                        phase_data = df_timeline[df_timeline["阶段"].str.contains(phase, na=False)]
-                        
-                        if phase_data.empty:
-                            st.info(f"暂无 {phase} 阶段的合规数据。")
-                        else:
-                            for idx, row in phase_data.iterrows():
-                                law_title = row.get("法规名称", "未命名法规")
-                                full_text = row.get("完整条款内容", "暂无内容")
-                                
-                                st.markdown(f"#### 📜 {law_title}")
-                                st.markdown(f'<div class="law-content">{full_text}</div>', unsafe_allow_html=True)
+                    # 过滤出当前阶段的数据
+                    phase_data = timeline_df[timeline_df["phase"].str.contains(phase_name, na=False)]
+
+                    if phase_data.empty:
+                        st.info(f"暂无【{phase_name}】阶段的相关合规条文数据。")
                     else:
-                        st.error("Excel 表格中缺少名为 '阶段' 的列，无法进行时间轴分类。请检查表头名称。")
+                        # 按照子阶段或法规名称进行分组展示，提升层次感
+                        grouped_phase = phase_data.groupby("sub_phase" if "sub_phase" in phase_data.columns else "law_title")
+                        
+                        for sub_key, group in grouped_phase:
+                            display_title = sub_key if sub_key and sub_key != "nan" else "核心合规指引"
+                            st.markdown(f"#### 📌 {display_title}")
+                            
+                            for _, row in group.iterrows():
+                                law_t = row.get("law_title", "")
+                                content = row.get("content", "")
+                                
+                                if law_t and law_t != "nan" and law_t != display_title:
+                                    st.markdown(f"**📜 法规来源/条款**：{law_t}")
+                                
+                                st.markdown(f'<div class="law-content">{content}</div>', unsafe_allow_html=True)
+                            st.markdown("---")
 
     conn.close()
