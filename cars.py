@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# ==================== 2. 注入北大法宝风格 CSS ====================
+# ==================== 2. 注入北大法宝风格与时间轴专属 CSS ====================
 CUSTOM_CSS = """
 <style>
     /* 全局字体 */
@@ -19,7 +19,7 @@ CUSTOM_CSS = """
         font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     }
     
-    /* 更改整个应用的背景色为浅灰蓝色，打破大面积留白 */
+    /* 背景色 */
     [data-testid="stAppViewContainer"] {
         background-color: #f0f2f6; 
     }
@@ -30,24 +30,21 @@ CUSTOM_CSS = """
         padding: 25px 30px;
         border-radius: 10px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        border-top: 5px solid #1a5276; /* 北大蓝强调色 */
+        border-top: 5px solid #1a5276;
         margin-bottom: 25px;
     }
     
-    /* 标题颜色 */
     h1, h2, h3 {
         color: #1a5276 !important; 
         font-weight: 600 !important;
     }
     
-    /* 侧边栏样式优化 */
     [data-testid="stSidebar"] {
         background-color: #ffffff;
         border-right: 1px solid #e0e0e0;
         box-shadow: 2px 0 10px rgba(0,0,0,0.02);
     }
     
-    /* Expander (折叠面板) 拟物卡片化 */
     div[data-testid="stExpander"] {
         background-color: #ffffff;
         border: 1px solid #e6e9f0;
@@ -62,7 +59,6 @@ CUSTOM_CSS = """
         padding: 10px 15px;
     }
     
-    /* 自定义分类标签 */
     .law-tag {
         display: inline-block;
         background-color: #e8f0fe;
@@ -75,7 +71,6 @@ CUSTOM_CSS = """
         border: 1px solid #c6dafc;
     }
     
-    /* 法条正文阅读框 */
     .law-content {
         background-color: #fafafa;
         border-left: 4px solid #1a5276;
@@ -85,6 +80,37 @@ CUSTOM_CSS = """
         font-size: 0.95em;
         margin-bottom: 10px;
         text-align: justify;
+    }
+
+    /* 纵向时间轴美化样式 */
+    .timeline-container {
+        position: relative;
+        padding-left: 30px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border-left: 3px solid #1a5276;
+    }
+    .timeline-item {
+        position: relative;
+        margin-bottom: 30px;
+    }
+    .timeline-node {
+        position: absolute;
+        left: -37.5px;
+        top: 0px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background-color: #1a5276;
+        border: 3px solid #ffffff;
+        box-shadow: 0 0 0 2px #1a5276;
+    }
+    .timeline-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        border: 1px solid #e1e8ed;
     }
 </style>
 """
@@ -141,7 +167,6 @@ def init_database_from_excel():
         conn.close()
         return False
 
-    # 读取Excel第一个Sheet
     xl_file = pd.ExcelFile(excel_path)
     target_sheet = xl_file.sheet_names[0]
     df_raw = pd.read_excel(excel_path, sheet_name=target_sheet, header=None)
@@ -216,7 +241,7 @@ else:
     st.sidebar.markdown("### 🧭 系统导航")
     
     nav_mode = st.sidebar.radio(
-        "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程"]
+        "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"]
     )
     st.sidebar.markdown("---")
 
@@ -306,55 +331,62 @@ else:
         else:
             st.info("👈 请在左侧侧边栏输入关键词以获取检索结果。")
 
-    elif nav_mode == "⏱️ 出境全流程":
-        st.markdown("### ⏱️ 数据出境全流程合规指引")
-        st.markdown("按照数据出境的核心生命周期（**出境前准备与评估、出境中实施与传输、出境后合规监督**），为您全景展示各环节对应的法规要求及落地指引。")
+    elif nav_mode == "⏱️ 出境全流程时间轴":
+        st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
+        st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
         st.write("")
 
-        # 智能动态映射出境全流程阶段
         all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
 
-        phases = ["出境前准备与评估", "出境中实施与传输", "出境后合规监督"]
-        tabs = st.tabs([f"📍 {p}" for p in phases])
+        # 定义时间轴的三个核心阶段节点
+        timeline_phases = [
+            {"title": "Phase 1：出境前准备与评估 (Data Mapping & Assessment)", 
+             "desc": "完成数据资产梳理、分类分级，执行数据出境安全评估、标准合同签署或个人信息保护认证。"},
+            {"title": "Phase 2：出境中实施与传输 (Secure Transmission & Protection)", 
+             "desc": "在符合车内处理、默认不收集、脱敏等原则下，落实跨境传输链路安全及技术保护措施。"},
+            {"title": "Phase 3：出境后合规监督 (Post-transfer Monitoring & Audit)", 
+             "desc": "建立持续合规审计机制、安全事件应急响应与境外接收方权益保障监督。"}
+        ]
 
-        for i, phase_name in enumerate(phases):
-            with tabs[i]:
+        # 选项卡或连续纵向展示
+        phase_tabs = st.tabs([f"📌 {p['title'].split(' ')[0]} {p['title'].split(' ')[1]}" for p in timeline_phases])
+
+        for i, p_info in enumerate(timeline_phases):
+            with phase_tabs[i]:
+                st.markdown(f"#### {p_info['title']}")
+                st.info(p_info['desc'])
+                
+                # 智能匹配该阶段对应的法规内容
                 if i == 0:
-                    # 出境前：数据分类分级、出境安全评估、标准合同、认证、告知同意等
-                    filtered_df = all_laws_df[
-                        all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) |
-                        all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)
-                    ]
+                    phase_df = all_laws_df[all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) | all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)]
                 elif i == 1:
-                    # 出境中：核心数据传输、技术保护、本地化、加密与安全保障
-                    filtered_df = all_laws_df[
-                        all_laws_df["content"].str.contains("传输|出境|向境外|接收|加密|安全保护", na=False) |
-                        all_laws_df["sub_cat_0"].str.contains("传输|安全", na=False)
-                    ]
-                    if filtered_df.empty:
-                        filtered_df = all_laws_df.iloc[3:7] # 兜底展示部分核心法规
+                    phase_df = all_laws_df[all_laws_df["content"].str.contains("传输|出境|向境外|接收|加密|安全保护", na=False)]
+                    if phase_df.empty: phase_df = all_laws_df.iloc[3:7]
                 else:
-                    # 出境后：持续合规监督、定期审计、应急响应与事件报告
-                    filtered_df = all_laws_df[
-                        all_laws_df["content"].str.contains("监督|审计|评估|报告|应急|处置", na=False) |
-                        all_laws_df["law_title"].str.contains("管理|指南", na=False)
-                    ]
-                    if filtered_df.empty:
-                        filtered_df = all_laws_df.iloc[7:] # 兜底展示剩余法规
+                    phase_df = all_laws_df[all_laws_df["content"].str.contains("监督|审计|评估|报告|应急|处置", na=False)]
+                    if phase_df.empty: phase_df = all_laws_df.iloc[7:]
 
-                if filtered_df.empty:
-                    st.info(f"当前【{phase_name}】阶段关联条文正在精细化匹配中...")
-                else:
-                    grouped_phase = filtered_df.groupby("law_title")
-                    for law_title, group in grouped_phase:
-                        region_name = group.iloc[0]["region"]
-                        with st.expander(f"📌 【{region_name}】 {law_title} ({len(group)} 项条款)"):
-                            st.markdown(f"#### {law_title}")
-                            for _, row in group.iterrows():
-                                sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
-                                if sc0 or sc1:
-                                    tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
-                                    st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
-                                st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
+                # 渲染美观的纵向时间轴卡片
+                st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
+                for _, row in phase_df.iterrows():
+                    region_n = row["region"]
+                    law_t = row["law_title"]
+                    sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
+                    content = row["content"]
+                    
+                    tag_str = f"[{region_n}] " + (f"{sc0} ➔ {sc1}" if (sc0 or sc1) else "")
+
+                    timeline_card_html = f"""
+                    <div class="timeline-item">
+                        <div class="timeline-node"></div>
+                        <div class="timeline-card">
+                            <span class="law-tag">{tag_str}</span>
+                            <h4 style="margin-top: 5px; color: #1a5276;">{law_t}</h4>
+                            <div class="law-content" style="margin-bottom: 0;">{content}</div>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(timeline_card_html, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
     conn.close()
