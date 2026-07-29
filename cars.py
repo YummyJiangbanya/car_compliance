@@ -137,22 +137,15 @@ def init_database_from_excel():
         )
     """)
 
-    # 新增：出境全流程专属数据表
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS timeline_laws (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            phase TEXT,
-            sub_phase TEXT,
-            law_title TEXT,
-            content TEXT
-        )
-    """)
-
     if not os.path.exists(excel_path):
         conn.close()
         return False
 
-    df_raw = pd.read_excel(excel_path, sheet_name=0, header=None)
+    # 读取Excel第一个Sheet
+    xl_file = pd.ExcelFile(excel_path)
+    target_sheet = xl_file.sheet_names[0]
+    df_raw = pd.read_excel(excel_path, sheet_name=target_sheet, header=None)
+    
     cursor.execute("DELETE FROM compliance_laws")
 
     categories_row = df_raw.iloc[0].ffill()
@@ -195,32 +188,6 @@ def init_database_from_excel():
                 "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (region, category, law_title, "暂无分类", "暂无指引", "（该法规条文正在整理补充中，敬请期待...）", 999)
             )
-
-    # 尝试加载第二张表（或适配含有出境全流程的Sheet），如果您的出境全流程放在了特定的Sheet中，可在此自动读取
-    try:
-        excel_sheets = pd.ExcelFile(excel_path).sheet_names
-        target_sheet = None
-        for sheet in excel_sheets:
-            if "流程" in sheet or "时间轴" in sheet or "出境" in sheet:
-                target_sheet = sheet
-                break
-        
-        if target_sheet:
-            df_timeline = pd.read_excel(excel_path, sheet_name=target_sheet)
-            cursor.execute("DELETE FROM timeline_laws")
-            for _, row in df_timeline.iterrows():
-                # 兼容表格字段：阶段、环节/子阶段、法规名称/标题、完整条款内容
-                phase = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else "未分类"
-                sub_phase = str(row.iloc[1]).strip() if len(row) > 1 and pd.notna(row.iloc[1]) else ""
-                law_title = str(row.iloc[2]).strip() if len(row) > 2 and pd.notna(row.iloc[2]) else "相关合规要求"
-                content = str(row.iloc[3]).strip() if len(row) > 3 and pd.notna(row.iloc[3]) else str(row.iloc[-1])
-                
-                cursor.execute(
-                    "INSERT INTO timeline_laws (phase, sub_phase, law_title, content) VALUES (?, ?, ?, ?)",
-                    (phase, sub_phase, law_title, content)
-                )
-    except Exception:
-        pass
 
     conn.commit()
     conn.close()
@@ -341,42 +308,53 @@ else:
 
     elif nav_mode == "⏱️ 出境全流程":
         st.markdown("### ⏱️ 数据出境全流程合规指引")
-        st.markdown("按照数据出境的生命周期（**出境前、出境中、出境后**），为您全景展示各环节对应的合规要求、具体条款及操作指引。")
+        st.markdown("按照数据出境的核心生命周期（**出境前准备与评估、出境中实施与传输、出境后合规监督**），为您全景展示各环节对应的法规要求及落地指引。")
         st.write("")
 
-        # 从数据库中读取时间轴/出境全流程数据
-        timeline_df = pd.read_sql("SELECT phase, sub_phase, law_title, content FROM timeline_laws", conn)
+        # 智能动态映射出境全流程阶段
+        all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
 
-        if timeline_df.empty:
-            st.warning("⚠️ 暂未检测到“出境全流程”的明细数据。请检查您的Excel表格中是否包含对应维度的内容，或确认数据已被成功导入数据库。")
-        else:
-            # 设定固定的三个主阶段标签页
-            phases = ["出境前", "出境中", "出境后"]
-            tabs = st.tabs([f"📍 {p}" for p in phases])
+        phases = ["出境前准备与评估", "出境中实施与传输", "出境后合规监督"]
+        tabs = st.tabs([f"📍 {p}" for p in phases])
 
-            for i, phase_name in enumerate(phases):
-                with tabs[i]:
-                    # 过滤出当前阶段的数据
-                    phase_data = timeline_df[timeline_df["phase"].str.contains(phase_name, na=False)]
+        for i, phase_name in enumerate(phases):
+            with tabs[i]:
+                if i == 0:
+                    # 出境前：数据分类分级、出境安全评估、标准合同、认证、告知同意等
+                    filtered_df = all_laws_df[
+                        all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) |
+                        all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)
+                    ]
+                elif i == 1:
+                    # 出境中：核心数据传输、技术保护、本地化、加密与安全保障
+                    filtered_df = all_laws_df[
+                        all_laws_df["content"].str.contains("传输|出境|向境外|接收|加密|安全保护", na=False) |
+                        all_laws_df["sub_cat_0"].str.contains("传输|安全", na=False)
+                    ]
+                    if filtered_df.empty:
+                        filtered_df = all_laws_df.iloc[3:7] # 兜底展示部分核心法规
+                else:
+                    # 出境后：持续合规监督、定期审计、应急响应与事件报告
+                    filtered_df = all_laws_df[
+                        all_laws_df["content"].str.contains("监督|审计|评估|报告|应急|处置", na=False) |
+                        all_laws_df["law_title"].str.contains("管理|指南", na=False)
+                    ]
+                    if filtered_df.empty:
+                        filtered_df = all_laws_df.iloc[7:] # 兜底展示剩余法规
 
-                    if phase_data.empty:
-                        st.info(f"暂无【{phase_name}】阶段的相关合规条文数据。")
-                    else:
-                        # 按照子阶段或法规名称进行分组展示，提升层次感
-                        grouped_phase = phase_data.groupby("sub_phase" if "sub_phase" in phase_data.columns else "law_title")
-                        
-                        for sub_key, group in grouped_phase:
-                            display_title = sub_key if sub_key and sub_key != "nan" else "核心合规指引"
-                            st.markdown(f"#### 📌 {display_title}")
-                            
+                if filtered_df.empty:
+                    st.info(f"当前【{phase_name}】阶段关联条文正在精细化匹配中...")
+                else:
+                    grouped_phase = filtered_df.groupby("law_title")
+                    for law_title, group in grouped_phase:
+                        region_name = group.iloc[0]["region"]
+                        with st.expander(f"📌 【{region_name}】 {law_title} ({len(group)} 项条款)"):
+                            st.markdown(f"#### {law_title}")
                             for _, row in group.iterrows():
-                                law_t = row.get("law_title", "")
-                                content = row.get("content", "")
-                                
-                                if law_t and law_t != "nan" and law_t != display_title:
-                                    st.markdown(f"**📜 法规来源/条款**：{law_t}")
-                                
-                                st.markdown(f'<div class="law-content">{content}</div>', unsafe_allow_html=True)
-                            st.markdown("---")
+                                sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
+                                if sc0 or sc1:
+                                    tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
+                                    st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
+                                st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
 
     conn.close()
