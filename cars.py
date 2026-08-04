@@ -82,6 +82,27 @@ CUSTOM_CSS = """
         text-align: justify;
     }
 
+    /* 术语解释专属卡片样式 */
+    .term-card {
+        background-color: #fdfefe;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-left: 4px solid #e67e22;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        color: #333;
+        line-height: 1.7;
+        font-size: 0.95em;
+    }
+    
+    .term-source {
+        color: #7f8c8d;
+        font-size: 0.95em;
+        margin-top: 15px;
+        text-align: right;
+        font-weight: bold;
+    }
+
     /* 纵向时间轴美化样式 */
     .timeline-container {
         position: relative;
@@ -220,7 +241,9 @@ def init_database_from_excel():
 
 success = init_database_from_excel()
 
+
 # ==================== 4. 页面前端展示 ====================
+# 顶部 Banner
 st.markdown(
     """
     <div class="header-card">
@@ -237,58 +260,77 @@ st.markdown(
 if not success:
     st.error("数据加载失败！请确保 `合规平台条文整理.xlsx` 与本项目代码在同一目录下。")
 else:
-    # --- 侧边栏设计（加入悬浮窗：术语解释总结库） ---
-    st.sidebar.markdown("### 🧭 系统导航")
-    
-    nav_mode = st.sidebar.radio(
-        "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"]
-    )
-    st.sidebar.markdown("---")
-
-    # --- 术语解释总结悬浮/折叠窗 (Pop-up / Expander) ---
-    with st.sidebar.expander("📖 术语解释总结速查", expanded=False):
-        st.caption("基于项目术语对照表，支持中英文模糊检索。")
-        term_keyword = st.text_input("输入术语关键词检索", placeholder="如：sell, 匿名化, 企业...", key="term_search_input")
+    # --- 主界面顶部独立显眼的术语解释搜索区（不遮挡主界面数据） ---
+    with st.expander("📖 术语解释总结速查库 (点击展开检索)", expanded=False):
+        st.markdown("基于项目术语对照表，支持中英文模糊检索。")
+        term_keyword = st.text_input("输入术语关键词，例如：数据出境行为、个人信息、sell...", key="main_term_search")
         
-        # 读取同目录下或GitHub库中的 术语解释总结.xlsx 文件
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
+        term_excel_path = os.path.join(current_dir, "术语解释总结_4.xlsx")
         
         if os.path.exists(term_excel_path):
             try:
-                term_xls = pd.ExcelFile(term_excel_path)
-                term_df = pd.read_excel(term_excel_path, sheet_name=term_xls.sheet_names[0], header=None)
+                term_df = pd.read_excel(term_excel_path, header=None)
+                # 第一行（0行）作为法规名称
+                law_names = term_df.iloc[0, :].fillna("").astype(str).tolist()
                 
-                # 展平表格所有单元格，寻找带冒号的术语行或匹配项
                 terms_list = []
-                for r_idx in range(len(term_df)):
+                # 从第二行（索引1）开始读取内容
+                for r_idx in range(1, len(term_df)):
                     for c_idx in range(len(term_df.columns)):
                         cell_val = term_df.iloc[r_idx, c_idx]
                         if pd.notna(cell_val):
-                            text_str = str(cell_val).strip()
-                            # 按行或换行符拆分，查找符合 英文/中文: 格式或者长定义
-                            lines = text_str.split("\n")
-                            for line in lines:
-                                line_clean = line.strip()
-                                if line_clean and len(line_clean) > 2:
-                                    terms_list.append(line_clean)
-                
-                # 去重并过滤
-                terms_list = list(set(terms_list))
-                
+                            cell_str = str(cell_val).strip()
+                            if not cell_str or cell_str.lower() == "nan":
+                                continue
+                            
+                            source_law = law_names[c_idx] if c_idx < len(law_names) else "未知法规"
+                            
+                            # 按照【第一个英文冒号】进行分割
+                            # 如果存在英文冒号，保留其后的“所有内容”作为定义内容
+                            parts = cell_str.split(":", 1)
+                            if len(parts) == 2:
+                                definition = parts[1].strip()
+                            else:
+                                definition = cell_str.strip()
+                                
+                            terms_list.append({
+                                "full_text": cell_str,
+                                "definition": definition,
+                                "source": source_law
+                            })
+                            
                 if term_keyword:
-                    filtered_terms = [t for t in terms_list if term_keyword.lower() in t.lower()]
+                    filtered_terms = [t for t in terms_list if term_keyword.lower() in t["full_text"].lower()]
+                    st.markdown(f"**检索到相关术语/条文 ({len(filtered_terms)} 条)**:")
+                    
+                    for t_item in filtered_terms:
+                        # 将换行符转为HTML格式以保证排版格式不丢
+                        def_html = t_item['definition'].replace('\n', '<br>')
+                        source_text = f"（来源：《{t_item['source']}》）"
+                        
+                        st.markdown(
+                            f"""
+                            <div class="term-card">
+                                <div>{def_html}</div>
+                                <div class="term-source">{source_text}</div>
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
                 else:
-                    filtered_terms = terms_list[:15] # 默认展示前15条
-                
-                st.markdown(f"**检索到相关术语/条文 ({len(filtered_terms)} 条)**:")
-                for t_item in filtered_terms:
-                    st.markdown(f"<div style='background-color:#f8f9fa; padding:8px; border-radius:5px; margin-bottom:6px; font-size:0.85em; border-left:3px solid #1a5276;'>{t_item}</div>", unsafe_allow_html=True)
+                    st.info("👈 请在上方输入框输入关键词检索。")
             except Exception as e:
                 st.error(f"加载术语表异常: {e}")
         else:
-            st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
+            st.warning("未检测到 `术语解释总结_4.xlsx` 文件，请确认已上传至同一目录。")
 
+
+    # --- 左侧边栏导航 ---
+    st.sidebar.markdown("### 🧭 系统导航")
+    nav_mode = st.sidebar.radio(
+        "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"]
+    )
     st.sidebar.markdown("---")
 
     conn = sqlite3.connect(DB_FILE)
@@ -384,7 +426,6 @@ else:
 
         all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
 
-        # 定义时间轴的三个核心阶段节点
         timeline_phases = [
             {"title": "Phase 1：出境前准备与评估 (Data Mapping & Assessment)", 
              "desc": "完成数据资产梳理、分类分级，执行数据出境安全评估、标准合同签署或个人信息保护认证。"},
@@ -394,7 +435,6 @@ else:
              "desc": "建立持续合规审计机制、安全事件应急响应与境外接收方权益保障监督。"}
         ]
 
-        # 选项卡或连续纵向展示
         phase_tabs = st.tabs([f"📌 {p['title'].split(' ')[0]} {p['title'].split(' ')[1]}" for p in timeline_phases])
 
         for i, p_info in enumerate(timeline_phases):
@@ -402,7 +442,6 @@ else:
                 st.markdown(f"#### {p_info['title']}")
                 st.info(p_info['desc'])
                 
-                # 智能匹配该阶段对应的法规内容
                 if i == 0:
                     phase_df = all_laws_df[all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) | all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)]
                 elif i == 1:
@@ -412,7 +451,6 @@ else:
                     phase_df = all_laws_df[all_laws_df["content"].str.contains("监督|审计|评估|报告|应急|处置", na=False)]
                     if phase_df.empty: phase_df = all_laws_df.iloc[7:]
 
-                # 渲染美观的纵向时间轴卡片
                 st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
                 for _, row in phase_df.iterrows():
                     region_n = row["region"]
