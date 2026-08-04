@@ -19,7 +19,7 @@ if "show_terms_page" not in st.session_state:
 def toggle_terms_page():
     st.session_state.show_terms_page = not st.session_state.show_terms_page
 
-# ==================== 2. 全局 CSS 样式 ====================
+# ==================== 2. 全局 CSS 样式（优化搜索框显眼度） ====================
 CUSTOM_CSS = """
 <style>
     /* 全局字体 */
@@ -141,6 +141,21 @@ CUSTOM_CSS = """
         box-shadow: 0 2px 10px rgba(0,0,0,0.04);
         border: 1px solid #e1e8ed;
     }
+
+    /* ==================== 搜索框深度美化（加边框、更改底色使其显眼） ==================== */
+    /* 针对主界面及术语界面的文本输入框内部 input 元素进行背景底色修改 */
+    div[data-baseweb="input"] {
+        background-color: #ffffff !important;
+        border: 2px solid #1a5276 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 6px rgba(26, 82, 118, 0.15) !important;
+    }
+    
+    /* 鼠标悬停或聚焦时的高亮显示 */
+    div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
+        border-color: #e67e22 !important;
+        box-shadow: 0 0 8px rgba(230, 126, 34, 0.3) !important;
+    }
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -261,7 +276,7 @@ st.sidebar.markdown("### 🧭 主系统功能")
 nav_mode = st.sidebar.radio(
     "切换功能模块", 
     ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"],
-    disabled=st.session_state.show_terms_page  # 当打开术语页时，暂时禁用主导航防止误触
+    disabled=st.session_state.show_terms_page
 )
 
 
@@ -279,7 +294,6 @@ if st.session_state.show_terms_page:
     term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search")
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    # 强制固定文件名
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
     
     if os.path.exists(term_excel_path):
@@ -301,7 +315,6 @@ if st.session_state.show_terms_page:
                         
                         source_law = law_names[c_idx] if c_idx < len(law_names) and law_names[c_idx] else "未知法规"
                         
-                        # 按照第一个冒号切割
                         parts = cell_str.split(":", 1)
                         if len(parts) == 2:
                             term_name = parts[0].strip()
@@ -310,7 +323,6 @@ if st.session_state.show_terms_page:
                             term_name = cell_str
                             definition = cell_str
                             
-                        # 提取高亮颜色作为同义词依据
                         color = None
                         if cell.fill and cell.fill.start_color:
                             color_val = cell.fill.start_color.index
@@ -327,20 +339,17 @@ if st.session_state.show_terms_page:
                         
             final_results = []
             
-            # 如果有搜索词，执行联动搜索；如果没有，直接展示所有
             if term_keyword:
                 term_keyword_lower = term_keyword.lower()
                 matched_colors = set()
                 direct_match_indices = set()
                 
-                # 第一轮：精确匹配术语名称（冒号前部分）
                 for i, t in enumerate(terms_list):
                     if term_keyword_lower in t["term_name"].lower():
                         direct_match_indices.add(i)
                         if t["color"]:
                             matched_colors.add(t["color"])
                             
-                # 第二轮：整合颜色同义词
                 for i, t in enumerate(terms_list):
                     if i in direct_match_indices or (t["color"] and t["color"] in matched_colors):
                         final_results.append(t)
@@ -350,9 +359,7 @@ if st.session_state.show_terms_page:
                 final_results = terms_list
                 st.markdown(f"**当前库内完整术语/条文共计：{len(final_results)} 条**")
 
-            # 渲染结果
             for t_item in final_results:
-                # 若分开了名字和定义，为了方便阅读把名字加粗显示在最前面；如果没法分则直接展示
                 if t_item['term_name'] != t_item['definition']:
                     def_html = f"<b>{t_item['term_name']}：</b>" + t_item['definition'].replace('\n', '<br>')
                 else:
