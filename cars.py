@@ -2,6 +2,7 @@ import os
 import re
 import sqlite3
 import pandas as pd
+import openpyxl
 import streamlit as st
 
 # ==================== 1. 页面配置 ====================
@@ -260,52 +261,84 @@ st.markdown(
 if not success:
     st.error("数据加载失败！请确保 `合规平台条文整理.xlsx` 与本项目代码在同一目录下。")
 else:
-    # --- 主界面顶部独立显眼的术语解释搜索区（不遮挡主界面数据） ---
+    # --- 主界面顶部独立显眼的术语解释搜索区 ---
     with st.expander("📖 术语解释总结速查库 (点击展开检索)", expanded=False):
-        st.markdown("基于项目术语对照表，支持中英文模糊检索。")
-        term_keyword = st.text_input("输入术语关键词，例如：数据出境行为、个人信息、sell...", key="main_term_search")
+        st.markdown("基于项目术语对照表，支持中英文模糊检索与同义词联动。")
+        term_keyword = st.text_input("输入术语关键词，例如：个人信息、sell、重要数据...", key="main_term_search")
         
         current_dir = os.path.dirname(os.path.abspath(__file__))
+        # 【严格遵循要求4】此处无论如何固定使用 "术语解释总结.xlsx"
         term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
         
         if os.path.exists(term_excel_path):
             try:
-                term_df = pd.read_excel(term_excel_path, header=None)
-                # 第一行（0行）作为法规名称
-                law_names = term_df.iloc[0, :].fillna("").astype(str).tolist()
+                # 使用 openpyxl 读取，以提取单元格高亮颜色
+                wb = openpyxl.load_workbook(term_excel_path, data_only=True)
+                ws = wb.active
+                
+                # 第一行（openpyxl中为第1行）作为所属法规名称
+                law_names = []
+                for cell in ws[1]:
+                    law_names.append(str(cell.value).strip() if cell.value else "")
                 
                 terms_list = []
-                # 从第二行（索引1）开始读取内容
-                for r_idx in range(1, len(term_df)):
-                    for c_idx in range(len(term_df.columns)):
-                        cell_val = term_df.iloc[r_idx, c_idx]
-                        if pd.notna(cell_val):
-                            cell_str = str(cell_val).strip()
+                # 从第二行开始遍历数据
+                for row in ws.iter_rows(min_row=2):
+                    for c_idx, cell in enumerate(row):
+                        if cell.value:
+                            cell_str = str(cell.value).strip()
                             if not cell_str or cell_str.lower() == "nan":
                                 continue
                             
-                            source_law = law_names[c_idx] if c_idx < len(law_names) else "未知法规"
+                            source_law = law_names[c_idx] if c_idx < len(law_names) and law_names[c_idx] else "未知法规"
                             
-                            # 按照【第一个英文冒号】进行分割
-                            # 如果存在英文冒号，保留其后的“所有内容”作为定义内容
+                            # 【要求1】按照第一个英文冒号切割。冒号前为术语名词，冒号后为定义。
                             parts = cell_str.split(":", 1)
                             if len(parts) == 2:
+                                term_name = parts[0].strip()
                                 definition = parts[1].strip()
                             else:
-                                definition = cell_str.strip()
+                                term_name = cell_str
+                                definition = cell_str
                                 
+                            # 【要求3】获取单元格高亮颜色（用于近似词检索）
+                            color = None
+                            if cell.fill and cell.fill.start_color:
+                                color_val = cell.fill.start_color.index
+                                if color_val and str(color_val) != '00000000':
+                                    color = str(color_val)
+                                    
                             terms_list.append({
-                                "full_text": cell_str,
+                                "term_name": term_name,
                                 "definition": definition,
-                                "source": source_law
+                                "source": source_law,
+                                "color": color
                             })
                             
                 if term_keyword:
-                    filtered_terms = [t for t in terms_list if term_keyword.lower() in t["full_text"].lower()]
-                    st.markdown(f"**检索到相关术语/条文 ({len(filtered_terms)} 条)**:")
+                    # 【要求2】英文检索部分不区分大小写
+                    term_keyword_lower = term_keyword.lower()
                     
-                    for t_item in filtered_terms:
-                        # 将换行符转为HTML格式以保证排版格式不丢
+                    matched_colors = set()
+                    direct_match_indices = set()
+                    
+                    # 第一轮：通过“第一个冒号前”的关键词进行模糊比对
+                    for i, t in enumerate(terms_list):
+                        if term_keyword_lower in t["term_name"].lower():
+                            direct_match_indices.add(i)
+                            if t["color"]:
+                                matched_colors.add(t["color"])
+                                
+                    # 第二轮：凡是带有相同高亮颜色（即被分类为同义词）的条文，一并加入检索结果
+                    final_results = []
+                    for i, t in enumerate(terms_list):
+                        if i in direct_match_indices or (t["color"] and t["color"] in matched_colors):
+                            final_results.append(t)
+                            
+                    st.markdown(f"**检索到相关术语/条文 ({len(final_results)} 条)**:")
+                    
+                    for t_item in final_results:
+                        # 确保原文内的所有换行和标点符号完整保留
                         def_html = t_item['definition'].replace('\n', '<br>')
                         source_text = f"（来源：《{t_item['source']}》）"
                         
@@ -323,7 +356,7 @@ else:
             except Exception as e:
                 st.error(f"加载术语表异常: {e}")
         else:
-            st.warning("未检测到 `术语解释总结_4.xlsx` 文件，请确认已上传至同一目录。")
+            st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
 
 
     # --- 左侧边栏导航 ---
