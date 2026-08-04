@@ -266,7 +266,7 @@ else:
         term_keyword = st.text_input("输入术语关键词，例如：数据出境行为、个人信息、sell...", key="main_term_search")
         
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        term_excel_path = os.path.join(current_dir, "术语解释总结_4.xlsx")
+        term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
         
         if os.path.exists(term_excel_path):
             try:
