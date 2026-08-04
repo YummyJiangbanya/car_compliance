@@ -19,7 +19,7 @@ if "show_terms_page" not in st.session_state:
 def toggle_terms_page():
     st.session_state.show_terms_page = not st.session_state.show_terms_page
 
-# ==================== 2. 全局 CSS 样式（优化搜索框显眼度） ====================
+# ==================== 2. 全局 CSS 样式 ====================
 CUSTOM_CSS = """
 <style>
     /* 全局字体 */
@@ -142,19 +142,14 @@ CUSTOM_CSS = """
         border: 1px solid #e1e8ed;
     }
 
-    /* ==================== 搜索框深度美化（加边框、更改底色使其显眼） ==================== */
-    /* 针对主界面及术语界面的文本输入框内部 input 元素进行背景底色修改 */
-    div[data-baseweb="input"] {
-        background-color: #ffffff !important;
-        border: 2px solid #1a5276 !important;
-        border-radius: 8px !important;
-        box-shadow: 0 2px 6px rgba(26, 82, 118, 0.15) !important;
-    }
-    
-    /* 鼠标悬停或聚焦时的高亮显示 */
-    div[data-baseweb="input"]:hover, div[data-baseweb="input"]:focus-within {
-        border-color: #e67e22 !important;
-        box-shadow: 0 0 8px rgba(230, 126, 34, 0.3) !important;
+    /* 专用的高显眼度搜索框外发光与白框包裹容器样式 */
+    .search-box-wrapper {
+        background-color: #eaf2f8;
+        padding: 12px 15px;
+        border-radius: 10px;
+        border: 2px solid #ffffff;
+        box-shadow: 0 4px 10px rgba(26, 82, 118, 0.2);
+        margin-bottom: 15px;
     }
 </style>
 """
@@ -276,7 +271,7 @@ st.sidebar.markdown("### 🧭 主系统功能")
 nav_mode = st.sidebar.radio(
     "切换功能模块", 
     ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"],
-    disabled=st.session_state.show_terms_page
+    disabled=st.session_state.show_terms_page 
 )
 
 
@@ -291,7 +286,10 @@ if st.session_state.show_terms_page:
     st.markdown("<p style='text-align: center; color: #555;'>展示完整的术语释义。支持基于首个英文冒号前关键词的模糊搜索与多国近似词自动联动。</p>", unsafe_allow_html=True)
     st.markdown("---")
     
+    # 术语界面搜索框（加入显眼的外发光与白边框背景容器）
+    st.markdown('<div class="search-box-wrapper">', unsafe_allow_html=True)
     term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
@@ -456,7 +454,11 @@ else:
                         st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
 
         elif nav_mode == "🔎 穿透式法规检索":
+            # 穿透式法规检索侧边栏搜索框（加入显眼的外发光与白边框背景容器）
+            st.sidebar.markdown('<div class="search-box-wrapper">', unsafe_allow_html=True)
             keyword = st.sidebar.text_input("输入检索关键词", placeholder="如：数据出境、GDPR...")
+            st.sidebar.markdown('</div>', unsafe_allow_html=True)
+            
             st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
 
             if keyword:
