@@ -142,14 +142,24 @@ CUSTOM_CSS = """
         border: 1px solid #e1e8ed;
     }
 
-    /* 专用的高显眼度搜索框外发光与白框包裹容器样式 */
-    .search-box-wrapper {
-        background-color: #eaf2f8;
-        padding: 12px 15px;
-        border-radius: 10px;
-        border: 2px solid #ffffff;
-        box-shadow: 0 4px 10px rgba(26, 82, 118, 0.2);
-        margin-bottom: 15px;
+    /* ==========================================================
+       核心改进：直接精准锁定并强化 Streamlit 原生输入框样式
+       使其高亮显眼、粗边框、白底，绝对不会产生“假输入框”的问题
+       ========================================================== */
+    div[data-testid="stTextInput"] input {
+        background-color: #ffffff !important;
+        border: 2px solid #1a5276 !important;
+        color: #1a5276 !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+    }
+    div[data-testid="stTextInput"] input:focus {
+        border-color: #2980b9 !important;
+        box-shadow: 0 0 8px rgba(41, 128, 185, 0.4) !important;
+    }
+    div[data-testid="stTextInput"] label {
+        font-weight: bold !important;
+        color: #1a5276 !important;
     }
 </style>
 """
@@ -286,10 +296,8 @@ if st.session_state.show_terms_page:
     st.markdown("<p style='text-align: center; color: #555;'>展示完整的术语释义。支持基于首个英文冒号前关键词的模糊搜索与多国近似词自动联动。</p>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # 术语界面搜索框（加入显眼的外发光与白边框背景容器）
-    st.markdown('<div class="search-box-wrapper">', unsafe_allow_html=True)
-    term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # 术语界面搜索框（原生输入框，通过上方全局 CSS 实现加粗边框和高亮显眼效果）
+    term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
@@ -454,11 +462,8 @@ else:
                         st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
 
         elif nav_mode == "🔎 穿透式法规检索":
-            # 穿透式法规检索侧边栏搜索框（加入显眼的外发光与白边框背景容器）
-            st.sidebar.markdown('<div class="search-box-wrapper">', unsafe_allow_html=True)
-            keyword = st.sidebar.text_input("输入检索关键词", placeholder="如：数据出境、GDPR...")
-            st.sidebar.markdown('</div>', unsafe_allow_html=True)
-            
+            # 穿透式法规检索侧边栏搜索框（原生输入框，通过上方全局 CSS 实现醒目高亮边框）
+            keyword = st.sidebar.text_input("🔍 输入检索关键词", placeholder="如：数据出境、GDPR...")
             st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
 
             if keyword:
