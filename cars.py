@@ -237,12 +237,58 @@ st.markdown(
 if not success:
     st.error("数据加载失败！请确保 `合规平台条文整理.xlsx` 与本项目代码在同一目录下。")
 else:
-    # --- 侧边栏设计 ---
+    # --- 侧边栏设计（加入悬浮窗：术语解释总结库） ---
     st.sidebar.markdown("### 🧭 系统导航")
     
     nav_mode = st.sidebar.radio(
         "切换功能模块", ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"]
     )
+    st.sidebar.markdown("---")
+
+    # --- 术语解释总结悬浮/折叠窗 (Pop-up / Expander) ---
+    with st.sidebar.expander("📖 术语解释总结速查", expanded=False):
+        st.caption("基于项目术语对照表，支持中英文模糊检索。")
+        term_keyword = st.text_input("输入术语关键词检索", placeholder="如：sell, 匿名化, 企业...", key="term_search_input")
+        
+        # 读取同目录下或GitHub库中的 术语解释总结.xlsx 文件
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
+        
+        if os.path.exists(term_excel_path):
+            try:
+                term_xls = pd.ExcelFile(term_excel_path)
+                term_df = pd.read_excel(term_excel_path, sheet_name=term_xls.sheet_names[0], header=None)
+                
+                # 展平表格所有单元格，寻找带冒号的术语行或匹配项
+                terms_list = []
+                for r_idx in range(len(term_df)):
+                    for c_idx in range(len(term_df.columns)):
+                        cell_val = term_df.iloc[r_idx, c_idx]
+                        if pd.notna(cell_val):
+                            text_str = str(cell_val).strip()
+                            # 按行或换行符拆分，查找符合 英文/中文: 格式或者长定义
+                            lines = text_str.split("\n")
+                            for line in lines:
+                                line_clean = line.strip()
+                                if line_clean and len(line_clean) > 2:
+                                    terms_list.append(line_clean)
+                
+                # 去重并过滤
+                terms_list = list(set(terms_list))
+                
+                if term_keyword:
+                    filtered_terms = [t for t in terms_list if term_keyword.lower() in t.lower()]
+                else:
+                    filtered_terms = terms_list[:15] # 默认展示前15条
+                
+                st.markdown(f"**检索到相关术语/条文 ({len(filtered_terms)} 条)**:")
+                for t_item in filtered_terms:
+                    st.markdown(f"<div style='background-color:#f8f9fa; padding:8px; border-radius:5px; margin-bottom:6px; font-size:0.85em; border-left:3px solid #1a5276;'>{t_item}</div>", unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"加载术语表异常: {e}")
+        else:
+            st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
+
     st.sidebar.markdown("---")
 
     conn = sqlite3.connect(DB_FILE)
