@@ -88,6 +88,7 @@ CUSTOM_CSS = """
         font-size: 0.95em;
         margin-bottom: 10px;
         text-align: justify;
+        white-space: pre-wrap;
     }
 
     /* 术语解释专属卡片样式 */
@@ -166,10 +167,21 @@ DB_FILE = "car_compliance.db"
 
 # ==================== 3. 核心处理与数据库函数 ====================
 def parse_and_split_content(cell_text):
+    """
+    精准解析单元格中的法律条文内容，避免错位和乱切。
+    对于像英文长段落或无明显条号的说明文本，整体作为一个段落保留；
+    对于包含标准条款（如 第六十一条、Article 35 等）的文本，按条款进行安全切片。
+    """
     if not cell_text or str(cell_text).strip() == "nan":
         return []
     text = str(cell_text).strip()
-    pattern = r"(?=(?:Article\s+\d+|第[零一二三四五六七八九十百0-9]+条|Step\s+\d+))"
+    
+    # 如果是纯说明文本或英文评估指引（不含明显的“第X条”或“Article X”），则作为完整整体返回，绝不胡乱切碎
+    if not re.search(r"第[零一二三四五六七八九十百0-9]+条|Article\s+\d+", text):
+        return [text]
+        
+    # 针对包含标准条款的文本进行安全切片
+    pattern = r"(?=(?:Article\s+\d+|第[零一二三四五六七八九十百0-9]+条))"
     parts = re.split(pattern, text)
     cleaned_parts = [p.strip() for p in parts if p.strip()]
     return [text] if not cleaned_parts else cleaned_parts
@@ -179,7 +191,8 @@ def extract_sort_key(text):
     if match_cn:
         num_str = match_cn.group(1)
         mapping = {"一":1, "二":2, "三":3, "四":4, "五":5, "六":6, "七":7, "八":8, "九":9, "十":10,
-                   "十一":11, "十二":12, "十三":13, "十四":14, "十五":15, "十六":16, "十七":17, "十八":18, "十九":19, "二十":20}
+                   "十一":11, "十二":12, "十三":13, "十四":14, "十五":15, "十六":16, "十七":17, "十八":18, "十九":19, "二十":20,
+                   "六十一":61, "六十二":62, "六十九":69, "七十":70, "七十一":71, "七十六":76, "七十八":78}
         if num_str in mapping: return mapping[num_str]
         try: return int(num_str)
         except ValueError: pass
@@ -225,6 +238,7 @@ def init_database_from_excel():
     col0_ffill = df_raw.iloc[:, 0].ffill()
     col1_ffill = df_raw.iloc[:, 1].ffill()
 
+    # 严格按列独立提取，确保每一列对应特定法律法规，决不跨列串位
     for col_idx in range(3, len(df_raw.columns)):
         cat_name = str(categories_row.iloc[col_idx]).strip()
         law_title = str(titles_row.iloc[col_idx]).strip()
@@ -394,8 +408,8 @@ else:
         <div class="header-card">
             <h1 style='margin-top:0;'>⚖️ 智能网联汽车跨国数据合规平台</h1>
             <p style='color:#555; font-size:1.05em; margin-bottom:0;'>
-            本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的合规指引，支持模块化导航与多维精准检索。<br>
-            致力于为车企出境数据合规提供一站式法律支撑。
+                本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的合规指引，支持模块化导航与多维精准检索。<br>
+                致力于为车企出境数据合规提供一站式法律支撑。
             </p>
         </div>
         """, 
