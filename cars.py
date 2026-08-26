@@ -142,10 +142,7 @@ CUSTOM_CSS = """
         border: 1px solid #e1e8ed;
     }
 
-    /* ==========================================================
-       核心改进：直接精准锁定并强化 Streamlit 原生输入框样式
-       使其高亮显眼、粗边框、白底，绝对不会产生“假输入框”的问题
-       ========================================================== */
+    /* 精准锁定并强化 Streamlit 原生输入框样式 */
     div[data-testid="stTextInput"] input {
         background-color: #ffffff !important;
         border: 2px solid #1a5276 !important;
@@ -196,7 +193,7 @@ def extract_sort_key(text):
 @st.cache_data
 def init_database_from_excel():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    excel_path = os.path.join(current_dir, "合规平台条文整理.xlsx")
+    excel_path = os.path.join(current_dir, "合规平台条文整理 (1).xlsx")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
@@ -296,7 +293,6 @@ if st.session_state.show_terms_page:
     st.markdown("<p style='text-align: center; color: #555;'>展示完整的术语释义。支持基于首个英文冒号前关键词的模糊搜索与多国近似词自动联动。</p>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # 术语界面搜索框（原生输入框，通过上方全局 CSS 实现加粗边框和高亮显眼效果）
     term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -407,7 +403,7 @@ else:
     )
 
     if not success_db:
-        st.error("主数据加载失败！请确保 `合规平台条文整理.xlsx` 与本项目代码在同一目录下。")
+        st.error("主数据加载失败！请确保 `合规平台条文整理 (1).xlsx` 与本项目代码在同一目录下。")
     else:
         conn = sqlite3.connect(DB_FILE)
 
@@ -462,7 +458,6 @@ else:
                         st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
 
         elif nav_mode == "🔎 穿透式法规检索":
-            # 穿透式法规检索侧边栏搜索框（原生输入框，通过上方全局 CSS 实现醒目高亮边框）
             keyword = st.sidebar.text_input("🔍 输入检索关键词", placeholder="如：数据出境、GDPR...")
             st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
 
