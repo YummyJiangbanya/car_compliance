@@ -88,6 +88,8 @@ CUSTOM_CSS = """
         font-size: 0.95em;
         margin-bottom: 10px;
         text-align: justify;
+        /* 让网页端也能完美呈现你输入的换行与排版格式 */
+        white-space: pre-wrap;
     }
 
     /* 术语解释专属卡片样式 */
@@ -182,50 +184,26 @@ def extract_sort_key(text):
 
 def parse_cell_smart_split(cell):
     """
-    100% 严格基于 Excel 单元格内“富文本加粗（Bold）”或“红色字体颜色”属性进行切分：
-    - 支持富文本中设置了加粗（bold）或者字体颜色为红色（包含 FF0000、RED 等）的文本段落作为切分起点。
-    - 绝不盲目瞎切，彻底根除法条内部引用造成的误伤。
+    100% 严格基于 Excel 单元格内的“换行符（\n）”进行切分：
+    - 不管普通文本还是富文本，只要你在单元格内按了回车换行，Python 就能精准按行切割。
+    - 空行会自动过滤掉，保留有实质内容的段落。
     """
     if not cell.value or str(cell.value).strip() == "nan":
         return []
     
-    val_str = str(cell.value).strip()
+    # 兼容处理：无论是普通文本带有 \n，还是 openpyxl 读取的富文本结构
     is_rich = hasattr(cell, 'value') and isinstance(cell.value, openpyxl.cell.rich_text.CellRichText)
     
-    chunks = []
-    
     if is_rich:
-        current_chunk = ""
-        has_any_trigger = False
-        for rt in cell.value:
-            is_bold = rt.font and rt.font.bold
-            
-            # 检查字体颜色是否为红色
-            is_red = False
-            if rt.font and rt.font.color:
-                c_val = rt.font.color.rgb or rt.font.color.value
-                if c_val:
-                    c_str = str(c_val).upper()
-                    # 匹配常见的红色十六进制（如 FF0000, FFFF0000 等）或颜色名称
-                    if "FF0000" in c_str or "RED" in c_str:
-                        is_red = True
-            
-            if is_bold or is_red:
-                has_any_trigger = True
-                if current_chunk.strip():
-                    chunks.append(current_chunk.strip())
-                    current_chunk = ""
-            current_chunk += str(rt.text)
-            
-        if current_chunk.strip():
-            chunks.append(current_chunk.strip())
-            
-        if not has_any_trigger or not chunks:
-            chunks = [val_str]
+        full_text = "".join([str(rt.text) for rt in cell.value])
     else:
-        chunks = [val_str]
-
-    return chunks
+        full_text = str(cell.value)
+    
+    # 按换行符切分并清理前后空白，过滤空行
+    raw_lines = full_text.split("\n")
+    chunks = [line.strip() for line in raw_lines if line.strip()]
+    
+    return chunks if chunks else [str(cell.value).strip()]
 
 @st.cache_data
 def init_database_from_excel():
@@ -251,7 +229,6 @@ def init_database_from_excel():
         conn.close()
         return False
 
-    # 必须以 data_only=False 加载，才能读取到富文本样式元数据
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
