@@ -88,7 +88,7 @@ CUSTOM_CSS = """
         font-size: 0.95em;
         margin-bottom: 10px;
         text-align: justify;
-        /* 让网页端也能完美呈现你输入的换行与排版格式 */
+        /* 核心：完美保留你在 Excel 单元格中通过回车打出来的换行格式 */
         white-space: pre-wrap;
     }
 
@@ -103,6 +103,7 @@ CUSTOM_CSS = """
         color: #333;
         line-height: 1.7;
         font-size: 0.95em;
+        white-space: pre-wrap;
     }
 
     .term-source {
@@ -182,28 +183,20 @@ def extract_sort_key(text):
         except ValueError: pass
     return 999
 
-def parse_cell_smart_split(cell):
+def get_clean_cell_text(cell):
     """
-    100% 严格基于 Excel 单元格内的“换行符（\n）”进行切分：
-    - 不管普通文本还是富文本，只要你在单元格内按了回车换行，Python 就能精准按行切割。
-    - 空行会自动过滤掉，保留有实质内容的段落。
+    不进行任何拆分，完整保留单元格内容（包括你在单元格里按 Alt+Enter 打出的换行符）
     """
     if not cell.value or str(cell.value).strip() == "nan":
-        return []
+        return ""
     
-    # 兼容处理：无论是普通文本带有 \n，还是 openpyxl 读取的富文本结构
     is_rich = hasattr(cell, 'value') and isinstance(cell.value, openpyxl.cell.rich_text.CellRichText)
-    
     if is_rich:
         full_text = "".join([str(rt.text) for rt in cell.value])
     else:
         full_text = str(cell.value)
     
-    # 按换行符切分并清理前后空白，过滤空行
-    raw_lines = full_text.split("\n")
-    chunks = [line.strip() for line in raw_lines if line.strip()]
-    
-    return chunks if chunks else [str(cell.value).strip()]
+    return full_text.strip()
 
 @st.cache_data
 def init_database_from_excel():
@@ -264,24 +257,23 @@ def init_database_from_excel():
             sub_c1 = s1 if s1 and s1 != "nan" else ""
 
             if cell_val is not None and str(cell_val).strip() != "nan":
-                split_contents = parse_cell_smart_split(cell_obj)
-                for content_str in split_contents:
-                    if content_str and content_str != "nan":
-                        has_content = True
-                        sort_val = extract_sort_key(content_str)
-                        
+                content_str = get_clean_cell_text(cell_obj)
+                if content_str and content_str != "nan":
+                    has_content = True
+                    sort_val = extract_sort_key(content_str)
+                    
+                    cursor.execute(
+                        """SELECT COUNT(1) FROM compliance_laws 
+                           WHERE region=? AND category=? AND law_title=? AND sub_cat_0=? AND sub_cat_1=? AND content=?""",
+                        (region, category, law_title, sub_c0, sub_c1, content_str)
+                    )
+                    exists = cursor.fetchone()[0]
+                    
+                    if exists == 0:
                         cursor.execute(
-                            """SELECT COUNT(1) FROM compliance_laws 
-                               WHERE region=? AND category=? AND law_title=? AND sub_cat_0=? AND sub_cat_1=? AND content=?""",
-                            (region, category, law_title, sub_c0, sub_c1, content_str)
+                            "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (region, category, law_title, sub_c0, sub_c1, content_str, sort_val)
                         )
-                        exists = cursor.fetchone()[0]
-                        
-                        if exists == 0:
-                            cursor.execute(
-                                "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                (region, category, law_title, sub_c0, sub_c1, content_str, sort_val)
-                            )
 
         if not has_content:
             cursor.execute(
@@ -387,9 +379,9 @@ if st.session_state.show_terms_page:
 
             for t_item in final_results:
                 if t_item['term_name'] != t_item['definition']:
-                    def_html = f"<b>{t_item['term_name']}：</b>" + t_item['definition'].replace('\n', '<br>')
+                    def_html = f"<b>{t_item['term_name']}：</b>" + t_item['definition']
                 else:
-                    def_html = t_item['original_full'].replace('\n', '<br>')
+                    def_html = t_item['original_full']
 
                 source_text = f"（来源：《{t_item['source']}》）"
 
