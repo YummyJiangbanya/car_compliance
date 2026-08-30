@@ -180,44 +180,52 @@ def extract_sort_key(text):
         except ValueError: pass
     return 999
 
-def parse_cell_with_formatting(cell):
+def parse_cell_smart_split(cell):
     """
-    根据单元格的加粗情况进行拆分：
-    - 如果整个单元格完全没有加粗，则作为一个整体返回。
-    - 如果存在加粗部分，则以加粗的地方作为新一条的切割点，提取加粗标识及其后直到下一个加粗出现前的内容。
+    智能拆分单元格内容：
+    1. 优先尝试从 openpyxl 富文本的加粗片段中拆分（如果 Excel 里有显式加粗）。
+    2. 如果没有富文本加粗或富文本失效，则使用正则表达式自动匹配形如：
+       - “第二十三条”、“第三十九条”
+       - “Article 140”、“§202.242” 等特征前缀，将一个格子拆分为多条。
+    3. 如果既无加粗也无此类前缀，则作为一个整体返回。
     """
     if not cell.value or str(cell.value).strip() == "nan":
         return []
     
     val_str = str(cell.value).strip()
-    
-    # 检查是否为 openpyxl 的富文本 (CellRichText)
     is_rich = hasattr(cell, 'value') and isinstance(cell.value, openpyxl.cell.rich_text.CellRichText)
     
+    chunks = []
+    
     if is_rich:
-        chunks = []
         current_chunk = ""
         has_any_bold = False
-        
         for rt in cell.value:
             is_bold = rt.font and rt.font.bold
             if is_bold:
                 has_any_bold = True
-                # 遇到新的加粗片段，如果前面已有积累的内容，说明是上一个加粗块的后续内容，先保存
                 if current_chunk.strip():
                     chunks.append(current_chunk.strip())
                     current_chunk = ""
             current_chunk += str(rt.text)
-            
         if current_chunk.strip():
             chunks.append(current_chunk.strip())
             
         if not has_any_bold or not chunks:
-            return [val_str]
-        return chunks
-    else:
-        # 如果是普通纯文本单元格，按要求：无加粗的格子直接作为一个整体返回，不作变化
-        return [val_str]
+            chunks = [] # 如果富文本里没加粗，走下面的文本正则降级兜底
+
+    if not chunks:
+        # 正则表达式：匹配常见的法条开头（中文条目、Article、§、数字编号等）
+        # 支持诸如：第二十三条、Article 140、§202.242、45、202.101 Scope 等
+        pattern = r'(?=(?:第[零一二三四五六七八九十百0-9]+条|Article\s+\d+|§\d+|(?:\d+\.\d+)\s+[A-Z]))'
+        raw_parts = re.split(pattern, val_str)
+        chunks = [p.strip() for p in raw_parts if p.strip()]
+        
+        # 如果正则切完还是只有1个或没有，说明该格子无特定条目前缀，按整个格子返回
+        if not chunks:
+            chunks = [val_str]
+
+    return chunks
 
 @st.cache_data
 def init_database_from_excel():
@@ -243,12 +251,10 @@ def init_database_from_excel():
         conn.close()
         return False
 
-    # 必须以 data_only=False 读取以便捕获单元格样式与富文本加粗状态
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
 
-    # 同时用 pandas 读取纯文本矩阵用于快速定位行列结构
     df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
 
     cursor.execute("DELETE FROM compliance_laws")
@@ -271,7 +277,6 @@ def init_database_from_excel():
 
         has_content = False
         for row_idx in range(2, len(df_raw)):
-            # openpyxl 的 row/col 从 1 开始计数，pandas 从 0 开始，故行索引为 row_idx + 1，列索引为 col_idx + 1
             cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
             cell_val = cell_obj.value
             
@@ -281,15 +286,25 @@ def init_database_from_excel():
             sub_c1 = s1 if s1 and s1 != "nan" else ""
 
             if cell_val is not None and str(cell_val).strip() != "nan":
-                split_contents = parse_cell_with_formatting(cell_obj)
+                split_contents = parse_cell_smart_split(cell_obj)
                 for content_str in split_contents:
                     if content_str and content_str != "nan":
                         has_content = True
                         sort_val = extract_sort_key(content_str)
+                        
+                        # 数据库层面排重：避免因为表格多行相同内容造成同一法规下插入完全重复的条文
                         cursor.execute(
-                            "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (region, category, law_title, sub_c0, sub_c1, content_str, sort_val)
+                            """SELECT COUNT(1) FROM compliance_laws 
+                               WHERE region=? AND category=? AND law_title=? AND sub_cat_0=? AND sub_cat_1=? AND content=?""",
+                            (region, category, law_title, sub_c0, sub_c1, content_str)
                         )
+                        exists = cursor.fetchone()[0]
+                        
+                        if exists == 0:
+                            cursor.execute(
+                                "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                (region, category, law_title, sub_c0, sub_c1, content_str, sort_val)
+                            )
 
         if not has_content:
             cursor.execute(
@@ -488,7 +503,7 @@ else:
 
         elif nav_mode == "🔎 穿透式法规检索":
             keyword = st.sidebar.text_input("🔍 输入检索关键词", placeholder="如：数据出境、GDPR...")
-            st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
+            st.sidebar.caption("支持模糊搜索法规条款, 标签或分类维度。")
 
             if keyword:
                 wildcard = f"%{keyword}%"
