@@ -182,10 +182,9 @@ def extract_sort_key(text):
 
 def parse_cell_smart_split(cell):
     """
-    100% 严格基于 Excel 单元格内“富文本加粗（Bold）”属性进行切分：
-    - 绝不使用盲目的正则表达式去乱切，彻底根除“法条内部引用其他条款（如：依照本法第二十三条）被误伤切碎”的问题。
-    - 只有当 Excel 单元格内部明确存在富文本结构，且字词设置了加粗（Bold）时，才作为新条目的切分起点。
-    - 如果整个格子没有富文本加粗，则作为一个整体返回。
+    100% 严格基于 Excel 单元格内“富文本加粗（Bold）”或“红色字体颜色”属性进行切分：
+    - 支持富文本中设置了加粗（bold）或者字体颜色为红色（包含 FF0000、RED 等）的文本段落作为切分起点。
+    - 绝不盲目瞎切，彻底根除法条内部引用造成的误伤。
     """
     if not cell.value or str(cell.value).strip() == "nan":
         return []
@@ -197,12 +196,22 @@ def parse_cell_smart_split(cell):
     
     if is_rich:
         current_chunk = ""
-        has_any_bold = False
+        has_any_trigger = False
         for rt in cell.value:
             is_bold = rt.font and rt.font.bold
-            if is_bold:
-                has_any_bold = True
-                # 如果当前已经累积了内容，说明上一个加粗段落结束了，先存起来
+            
+            # 检查字体颜色是否为红色
+            is_red = False
+            if rt.font and rt.font.color:
+                c_val = rt.font.color.rgb or rt.font.color.value
+                if c_val:
+                    c_str = str(c_val).upper()
+                    # 匹配常见的红色十六进制（如 FF0000, FFFF0000 等）或颜色名称
+                    if "FF0000" in c_str or "RED" in c_str:
+                        is_red = True
+            
+            if is_bold or is_red:
+                has_any_trigger = True
                 if current_chunk.strip():
                     chunks.append(current_chunk.strip())
                     current_chunk = ""
@@ -211,11 +220,9 @@ def parse_cell_smart_split(cell):
         if current_chunk.strip():
             chunks.append(current_chunk.strip())
             
-        # 如果虽然是富文本，但里面没有任何一个字设置了加粗，则退化为整体返回
-        if not has_any_bold or not chunks:
+        if not has_any_trigger or not chunks:
             chunks = [val_str]
     else:
-        # 普通纯文本单元格（没有富文本结构），直接作为一个整体返回，绝不乱切
         chunks = [val_str]
 
     return chunks
@@ -244,7 +251,7 @@ def init_database_from_excel():
         conn.close()
         return False
 
-    # 必须以 data_only=False 加载，才能读取到字体加粗（bold）等样式元数据
+    # 必须以 data_only=False 加载，才能读取到富文本样式元数据
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
@@ -286,7 +293,6 @@ def init_database_from_excel():
                         has_content = True
                         sort_val = extract_sort_key(content_str)
                         
-                        # 数据库层面排重：避免因为表格多行相同内容造成同一法规下插入完全重复的条文
                         cursor.execute(
                             """SELECT COUNT(1) FROM compliance_laws 
                                WHERE region=? AND category=? AND law_title=? AND sub_cat_0=? AND sub_cat_1=? AND content=?""",
@@ -432,8 +438,8 @@ else:
         <div class="header-card">
             <h1 style='margin-top:0;'>⚖️ 智能网联汽车跨国数据合规平台</h1>
             <p style='color:#555; font-size:1.05em; margin-bottom:0;'>
-            本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的合规指引，支持模块化导航与多维精准检索。<br>
-            致力于为车企出境数据合规提供一站式法律支撑。
+                本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的合规指引，支持模块化导航与多维精准检索。<br>
+                致力于为车企出境数据合规提供一站式法律支撑。
             </p>
         </div>
         """, 
