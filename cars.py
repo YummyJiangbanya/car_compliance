@@ -182,12 +182,10 @@ def extract_sort_key(text):
 
 def parse_cell_smart_split(cell):
     """
-    智能拆分单元格内容：
-    1. 优先尝试从 openpyxl 富文本的加粗片段中拆分（如果 Excel 里有显式加粗）。
-    2. 如果没有富文本加粗或富文本失效，则使用正则表达式自动匹配形如：
-       - “第二十三条”、“第三十九条”
-       - “Article 140”、“§202.242” 等特征前缀，将一个格子拆分为多条。
-    3. 如果既无加粗也无此类前缀，则作为一个整体返回。
+    100% 严格基于 Excel 单元格内“富文本加粗（Bold）”属性进行切分：
+    - 绝不使用盲目的正则表达式去乱切，彻底根除“法条内部引用其他条款（如：依照本法第二十三条）被误伤切碎”的问题。
+    - 只有当 Excel 单元格内部明确存在富文本结构，且字词设置了加粗（Bold）时，才作为新条目的切分起点。
+    - 如果整个格子没有富文本加粗，则作为一个整体返回。
     """
     if not cell.value or str(cell.value).strip() == "nan":
         return []
@@ -204,26 +202,21 @@ def parse_cell_smart_split(cell):
             is_bold = rt.font and rt.font.bold
             if is_bold:
                 has_any_bold = True
+                # 如果当前已经累积了内容，说明上一个加粗段落结束了，先存起来
                 if current_chunk.strip():
                     chunks.append(current_chunk.strip())
                     current_chunk = ""
             current_chunk += str(rt.text)
+            
         if current_chunk.strip():
             chunks.append(current_chunk.strip())
             
+        # 如果虽然是富文本，但里面没有任何一个字设置了加粗，则退化为整体返回
         if not has_any_bold or not chunks:
-            chunks = [] # 如果富文本里没加粗，走下面的文本正则降级兜底
-
-    if not chunks:
-        # 正则表达式：匹配常见的法条开头（中文条目、Article、§、数字编号等）
-        # 支持诸如：第二十三条、Article 140、§202.242、45、202.101 Scope 等
-        pattern = r'(?=(?:第[零一二三四五六七八九十百0-9]+条|Article\s+\d+|§\d+|(?:\d+\.\d+)\s+[A-Z]))'
-        raw_parts = re.split(pattern, val_str)
-        chunks = [p.strip() for p in raw_parts if p.strip()]
-        
-        # 如果正则切完还是只有1个或没有，说明该格子无特定条目前缀，按整个格子返回
-        if not chunks:
             chunks = [val_str]
+    else:
+        # 普通纯文本单元格（没有富文本结构），直接作为一个整体返回，绝不乱切
+        chunks = [val_str]
 
     return chunks
 
@@ -251,6 +244,7 @@ def init_database_from_excel():
         conn.close()
         return False
 
+    # 必须以 data_only=False 加载，才能读取到字体加粗（bold）等样式元数据
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
