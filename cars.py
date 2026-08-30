@@ -26,12 +26,12 @@ CUSTOM_CSS = """
     html, body, [class*="css"] {
         font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     }
-    
+
     /* 背景色 */
     [data-testid="stAppViewContainer"] {
         background-color: #f0f2f6; 
     }
-    
+
     /* 顶部标题区卡片化 */
     .header-card {
         background-color: #ffffff;
@@ -41,18 +41,18 @@ CUSTOM_CSS = """
         border-top: 5px solid #1a5276;
         margin-bottom: 25px;
     }
-    
+
     h1, h2, h3 {
         color: #1a5276 !important; 
         font-weight: 600 !important;
     }
-    
+
     [data-testid="stSidebar"] {
         background-color: #ffffff;
         border-right: 1px solid #e0e0e0;
         box-shadow: 2px 0 10px rgba(0,0,0,0.02);
     }
-    
+
     div[data-testid="stExpander"] {
         background-color: #ffffff;
         border: 1px solid #e6e9f0;
@@ -66,7 +66,7 @@ CUSTOM_CSS = """
         font-weight: 600;
         padding: 10px 15px;
     }
-    
+
     .law-tag {
         display: inline-block;
         background-color: #e8f0fe;
@@ -78,7 +78,7 @@ CUSTOM_CSS = """
         margin-bottom: 10px;
         border: 1px solid #c6dafc;
     }
-    
+
     .law-content {
         background-color: #fafafa;
         border-left: 4px solid #1a5276;
@@ -102,7 +102,7 @@ CUSTOM_CSS = """
         line-height: 1.7;
         font-size: 0.95em;
     }
-    
+
     .term-source {
         color: #7f8c8d;
         font-size: 0.95em;
@@ -142,10 +142,6 @@ CUSTOM_CSS = """
         border: 1px solid #e1e8ed;
     }
 
-    /* ==========================================================
-        核心改进：直接精准锁定并强化 Streamlit 原生输入框样式
-        使其高亮显眼、粗边框、白底，绝对不会产生“假输入框”的问题
-        ========================================================== */
     div[data-testid="stTextInput"] input {
         background-color: #ffffff !important;
         border: 2px solid #1a5276 !important;
@@ -168,15 +164,6 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 DB_FILE = "car_compliance.db"
 
 # ==================== 3. 核心处理与数据库函数 ====================
-def parse_and_split_content(cell_text):
-    if not cell_text or str(cell_text).strip() == "nan":
-        return []
-    text = str(cell_text).strip()
-    pattern = r"(?=(?:Article\s+\d+|第[零一二三四五六七八九十百0-9]+条|Step\s+\d+))"
-    parts = re.split(pattern, text)
-    cleaned_parts = [p.strip() for p in parts if p.strip()]
-    return [text] if not cleaned_parts else cleaned_parts
-
 def extract_sort_key(text):
     match_cn = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
     if match_cn:
@@ -192,6 +179,47 @@ def extract_sort_key(text):
         try: return int(match_en.group(1))
         except ValueError: pass
     return 999
+
+def parse_cell_with_formatting(cell):
+    """
+    根据单元格的加粗情况进行拆分：
+    - 如果整个单元格完全没有加粗，或者是纯文本，则作为一个整体返回。
+    - 如果存在加粗部分，则以加粗的地方作为新一条的切割点。
+    """
+    if not cell.value or str(cell.value).strip() == "nan":
+        return []
+    
+    val_str = str(cell.value).strip()
+    
+    # 检查是否为 openpyxl 的 Rich Text (Cell 对象带有 font 信息或 inlineStr 内部包含多段富文本)
+    # 如果 cell.font 存在且 bold 属性明确，或者包含富文本 runs
+    is_rich = hasattr(cell, 'value') and isinstance(cell.value, openpyxl.cell.rich_text.CellRichText)
+    
+    if is_rich:
+        chunks = []
+        current_chunk = ""
+        has_any_bold = False
+        
+        for rt in cell.value:
+            is_bold = rt.font and rt.font.bold
+            if is_bold:
+                has_any_bold = True
+                if current_chunk.strip():
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+            current_chunk += str(rt.text)
+            
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+            
+        if not has_any_bold or not chunks:
+            return [val_str]
+        return chunks
+    else:
+        # 如果是普通纯文本单元格，按用户逻辑：如果没有特殊加粗标记，则整个格子是一条完整的
+        # 如果文本内部有显式的换行且包含加粗特征，可按行或按加粗行处理，这里默认按整格处理或按换行符结合粗体判断
+        # 若用户在Excel中是通过单元格内部加粗来区分的，普通字符串无富文本结构时，退化为整格返回或按行检查
+        return [val_str]
 
 @st.cache_data
 def init_database_from_excel():
@@ -217,10 +245,14 @@ def init_database_from_excel():
         conn.close()
         return False
 
-    xl_file = pd.ExcelFile(excel_path)
-    target_sheet = xl_file.sheet_names[0]
-    df_raw = pd.read_excel(excel_path, sheet_name=target_sheet, header=None)
-    
+    # 必须以 data_only=False 读取以便捕获单元格样式与富文本加粗状态
+    wb = openpyxl.load_workbook(excel_path, data_only=False)
+    sheet_name = wb.sheetnames[0]
+    ws = wb[sheet_name]
+
+    # 同时用 pandas 读取纯文本矩阵用于快速定位行列结构
+    df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
+
     cursor.execute("DELETE FROM compliance_laws")
 
     categories_row = df_raw.iloc[0].ffill()
@@ -241,14 +273,17 @@ def init_database_from_excel():
 
         has_content = False
         for row_idx in range(2, len(df_raw)):
-            cell_val = df_raw.iloc[row_idx, col_idx]
+            # openpyxl 的 row/col 从 1 开始计数，pandas 从 0 开始，故行索引为 row_idx + 1，列索引为 col_idx + 1
+            cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
+            cell_val = cell_obj.value
+            
             s0 = str(col0_ffill.iloc[row_idx]).strip()
             s1 = str(col1_ffill.iloc[row_idx]).strip()
             sub_c0 = s0 if s0 and s0 != "nan" else ""
             sub_c1 = s1 if s1 and s1 != "nan" else ""
 
-            if pd.notna(cell_val):
-                split_contents = parse_and_split_content(cell_val)
+            if cell_val is not None and str(cell_val).strip() != "nan":
+                split_contents = parse_cell_with_formatting(cell_obj)
                 for content_str in split_contents:
                     if content_str and content_str != "nan":
                         has_content = True
@@ -288,29 +323,25 @@ nav_mode = st.sidebar.radio(
 # ==================== 5. 页面展示逻辑 ====================
 
 if st.session_state.show_terms_page:
-    # ----------------------------------------------------
-    # 【视图 A】：独立的术语解释总结完整页面（沉浸式）
-    # ----------------------------------------------------
     st.button("🔙 返回主合规平台", on_click=toggle_terms_page)
     st.markdown("<h2 style='text-align: center; color: #e67e22 !important;'>📖 术语解释总结全库展示</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #555;'>展示完整的术语释义。支持基于首个英文冒号前关键词的模糊搜索与多国近似词自动联动。</p>", unsafe_allow_html=True)
     st.markdown("---")
-    
-    # 术语界面搜索框（原生输入框，通过上方全局 CSS 实现加粗边框和高亮显眼效果）
+
     term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
-    
+
     current_dir = os.path.dirname(os.path.abspath(__file__))
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
-    
+
     if os.path.exists(term_excel_path):
         try:
             wb = openpyxl.load_workbook(term_excel_path, data_only=True)
             ws = wb.active
-            
+
             law_names = []
             for cell in ws[1]:
                 law_names.append(str(cell.value).strip() if cell.value else "")
-            
+
             terms_list = []
             for row in ws.iter_rows(min_row=2):
                 for c_idx, cell in enumerate(row):
@@ -318,9 +349,9 @@ if st.session_state.show_terms_page:
                         cell_str = str(cell.value).strip()
                         if not cell_str or cell_str.lower() == "nan":
                             continue
-                        
+
                         source_law = law_names[c_idx] if c_idx < len(law_names) and law_names[c_idx] else "未知法规"
-                        
+
                         parts = cell_str.split(":", 1)
                         if len(parts) == 2:
                             term_name = parts[0].strip()
@@ -328,13 +359,13 @@ if st.session_state.show_terms_page:
                         else:
                             term_name = cell_str
                             definition = cell_str
-                            
+
                         color = None
                         if cell.fill and cell.fill.start_color:
                             color_val = cell.fill.start_color.index
                             if color_val and str(color_val) != '00000000':
                                 color = str(color_val)
-                                
+
                         terms_list.append({
                             "term_name": term_name,
                             "definition": definition,
@@ -342,24 +373,23 @@ if st.session_state.show_terms_page:
                             "color": color,
                             "original_full": cell_str
                         })
-                        
+
             final_results = []
-            
             if term_keyword:
                 term_keyword_lower = term_keyword.lower()
                 matched_colors = set()
                 direct_match_indices = set()
-                
+
                 for i, t in enumerate(terms_list):
                     if term_keyword_lower in t["term_name"].lower():
                         direct_match_indices.add(i)
                         if t["color"]:
                             matched_colors.add(t["color"])
-                            
+
                 for i, t in enumerate(terms_list):
                     if i in direct_match_indices or (t["color"] and t["color"] in matched_colors):
                         final_results.append(t)
-                
+
                 st.markdown(f"**检索到相关术语/条文共计：{len(final_results)} 条**")
             else:
                 final_results = terms_list
@@ -370,9 +400,9 @@ if st.session_state.show_terms_page:
                     def_html = f"<b>{t_item['term_name']}：</b>" + t_item['definition'].replace('\n', '<br>')
                 else:
                     def_html = t_item['original_full'].replace('\n', '<br>')
-                
+
                 source_text = f"（来源：《{t_item['source']}》）"
-                
+
                 st.markdown(
                     f"""
                     <div class="term-card">
@@ -382,7 +412,7 @@ if st.session_state.show_terms_page:
                     """, 
                     unsafe_allow_html=True
                 )
-                
+
         except Exception as e:
             st.error(f"加载术语表异常: {e}")
     else:
@@ -390,9 +420,6 @@ if st.session_state.show_terms_page:
 
 
 else:
-    # ----------------------------------------------------
-    # 【视图 B】：系统主界面 (完全不受干扰的合规主模块)
-    # ----------------------------------------------------
     st.markdown(
         """
         <div class="header-card">
@@ -425,17 +452,17 @@ else:
             query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
             conditions = []
             params = []
-            
+
             if selected_region != "全部":
                 conditions.append("region = ?")
                 params.append(selected_region)
             if selected_category != "全部":
                 conditions.append("category = ?")
                 params.append(selected_category)
-                
+
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
-                
+
             query += " ORDER BY region, category, sort_order"
             module_df = pd.read_sql(query, conn, params=tuple(params))
 
@@ -443,7 +470,6 @@ else:
             st.write("")
 
             grouped = module_df.groupby("law_title")
-
 
             for law_title, group in grouped:
                 region_name = group.iloc[0]["region"]
@@ -453,17 +479,16 @@ else:
                 with st.expander(expander_label, expanded=False):
                     st.markdown(f"#### {law_title}")
                     st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
-                    
+
                     for idx, row in group.reset_index().iterrows():
                         sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
                         if sc0 or sc1:
                             tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
                             st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
-                        
+
                         st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
 
         elif nav_mode == "🔎 穿透式法规检索":
-            # 穿透式法规检索侧边栏搜索框（原生输入框，通过上方全局 CSS 实现醒目高亮边框）
             keyword = st.sidebar.text_input("🔍 输入检索关键词", placeholder="如：数据出境、GDPR...")
             st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
 
@@ -483,7 +508,7 @@ else:
                 grouped_search = results_df.groupby("law_title")
                 for law_title, group in grouped_search:
                     region_name, cat_name = group.iloc[0]["region"], group.iloc[0]["category"]
-                    
+
                     with st.expander(f"📌 【{region_name}】 {law_title}"):
                         st.markdown(f"#### {law_title}")
                         for idx, row in group.reset_index().iterrows():
@@ -491,7 +516,7 @@ else:
                             if sc0 or sc1:
                                 tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
                                 st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
-                            
+
                             highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#ffeaa7; font-weight:bold;'>{keyword}</span>")
                             st.markdown(f'<div class="law-content">{highlighted_content}</div>', unsafe_allow_html=True)
             else:
@@ -519,7 +544,7 @@ else:
                 with phase_tabs[i]:
                     st.markdown(f"#### {p_info['title']}")
                     st.info(p_info['desc'])
-                    
+
                     if i == 0:
                         phase_df = all_laws_df[all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) | all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)]
                     elif i == 1:
@@ -535,7 +560,7 @@ else:
                         law_t = row["law_title"]
                         sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
                         content = row["content"]
-                        
+
                         tag_str = f"[{region_n}] " + (f"{sc0} ➔ {sc1}" if (sc0 or sc1) else "")
 
                         timeline_card_html = f"""
