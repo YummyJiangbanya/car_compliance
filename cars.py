@@ -183,16 +183,15 @@ def extract_sort_key(text):
 def parse_cell_with_formatting(cell):
     """
     根据单元格的加粗情况进行拆分：
-    - 如果整个单元格完全没有加粗，或者是纯文本，则作为一个整体返回。
-    - 如果存在加粗部分，则以加粗的地方作为新一条的切割点。
+    - 如果整个单元格完全没有加粗，则作为一个整体返回。
+    - 如果存在加粗部分，则以加粗的地方作为新一条的切割点，提取加粗标识及其后直到下一个加粗出现前的内容。
     """
     if not cell.value or str(cell.value).strip() == "nan":
         return []
     
     val_str = str(cell.value).strip()
     
-    # 检查是否为 openpyxl 的 Rich Text (Cell 对象带有 font 信息或 inlineStr 内部包含多段富文本)
-    # 如果 cell.font 存在且 bold 属性明确，或者包含富文本 runs
+    # 检查是否为 openpyxl 的富文本 (CellRichText)
     is_rich = hasattr(cell, 'value') and isinstance(cell.value, openpyxl.cell.rich_text.CellRichText)
     
     if is_rich:
@@ -204,6 +203,7 @@ def parse_cell_with_formatting(cell):
             is_bold = rt.font and rt.font.bold
             if is_bold:
                 has_any_bold = True
+                # 遇到新的加粗片段，如果前面已有积累的内容，说明是上一个加粗块的后续内容，先保存
                 if current_chunk.strip():
                     chunks.append(current_chunk.strip())
                     current_chunk = ""
@@ -216,9 +216,7 @@ def parse_cell_with_formatting(cell):
             return [val_str]
         return chunks
     else:
-        # 如果是普通纯文本单元格，按用户逻辑：如果没有特殊加粗标记，则整个格子是一条完整的
-        # 如果文本内部有显式的换行且包含加粗特征，可按行或按加粗行处理，这里默认按整格处理或按换行符结合粗体判断
-        # 若用户在Excel中是通过单元格内部加粗来区分的，普通字符串无富文本结构时，退化为整格返回或按行检查
+        # 如果是普通纯文本单元格，按要求：无加粗的格子直接作为一个整体返回，不作变化
         return [val_str]
 
 @st.cache_data
