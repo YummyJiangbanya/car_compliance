@@ -7,8 +7,8 @@ import streamlit as st
 
 # ==================== 1. 页面配置 ====================
 st.set_page_config(
-    page_title="智能网联汽车与跨国数据合规检索平台",
-    page_icon="⚖️", 
+    page_title="智能网联汽车与跨国数据合规检索平台 | Newsprint Edition",
+    page_icon="📰", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -20,22 +20,25 @@ if "show_terms_page" not in st.session_state:
 def toggle_terms_page():
     st.session_state.show_terms_page = not st.session_state.show_terms_page
 
-# ==================== 2. 全局 CSS 样式与 UI 设计系统 (Minimalist Monochrome 极简黑白高定美学) ====================
-CUSTOM_CSS = """
+# ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格重构) ====================
+NEWSPRINT_CSS = """
 <style>
-    /* ================= 设计系统变量 (黑白高定) ================= */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
+
     :root {
-        --bg-base: #ffffff;
-        --bg-surface: #ffffff;
-        --text-primary: #000000;
+        --bg-base: #F9F9F7;
+        --bg-surface: #F9F9F7;
+        --text-primary: #111111;
         --text-muted: #666666;
-        --border-color: #000000;
-        --easing-instant: cubic-bezier(0, 0, 0.2, 1);
+        --border-color: #111111;
+        --accent-red: #CC0000;
+        --divider-grey: #E5E5E0;
     }
 
-    /* 页面基础背景 */
+    /* 页面基础背景与网纹 */
     [data-testid="stAppViewContainer"] {
         background-color: var(--bg-base) !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23111111' fill-opacity='0.04' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E") !important;
         color: var(--text-primary) !important;
     }
     
@@ -43,121 +46,116 @@ CUSTOM_CSS = """
         background-color: transparent !important;
     }
 
-    /* 全局字体与文字颜色 */
+    /* 全局字体强制归位 */
     html, body, [class*="css"], p, span, div, label, li {
-        font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+        font-family: 'Lora', Georgia, serif;
         color: var(--text-primary);
     }
 
-    /* 标题采用经典衬线体与极简纯黑几何线条 */
+    /* 标题统合为 Playfair Display 衬线大标题 */
     h1, h2, h3, h4 {
-        font-family: "Playfair Display", "Times New Roman", "Songti SC", serif !important;
-        color: #000000 !important;
-        font-weight: 700 !important;
-        letter-spacing: -0.5px;
-        border-bottom: 2px solid #000000;
+        font-family: 'Playfair Display', 'Times New Roman', serif !important;
+        color: #111111 !important;
+        font-weight: 900 !important;
+        letter-spacing: -0.03em;
+        border-bottom: 2px solid #111111;
         padding-bottom: 8px;
         margin-bottom: 20px;
     }
 
-    /* ================= 核心组件样式 (Cards & Expanders - 绝对零圆角与瞬时反转) ================= */
-    .header-card, div[data-testid="stExpander"], .term-card, .timeline-card {
-        background-color: var(--bg-surface) !important;
-        border: 1px solid #000000 !important;
+    /* 绝对零圆角与硬阴影悬浮效果 */
+    .sharp-card, div[data-testid="stExpander"], .term-card, .timeline-card, .header-card {
+        background-color: #F9F9F7 !important;
+        border: 1px solid #111111 !important;
         border-radius: 0px !important;
         box-shadow: none !important;
-        transition: background-color 100ms var(--easing-instant), color 100ms var(--easing-instant);
-        margin-bottom: 20px;
+        transition: all 150s cubic-bezier(0, 0, 0.2, 1);
         padding: 24px;
+        margin-bottom: 20px;
     }
 
-    /* 悬浮瞬间反转微交互 (Color Inversion) */
-    .header-card:hover, div[data-testid="stExpander"]:hover:not(summary), .term-card:hover, .timeline-card:hover {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-    }
-    .header-card:hover *, div[data-testid="stExpander"]:hover *, .term-card:hover *, .timeline-card:hover * {
-        color: #ffffff !important;
+    .hard-shadow-hover:hover {
+        box-shadow: 4px 4px 0px 0px #111111 !important;
+        transform: translate(-2px, -2px);
     }
 
-    /* Expander 内部定制 */
+    /* Expander 严格零圆角和报纸风折叠头 */
     div[data-testid="stExpander"] { padding: 0 !important; }
     div[data-testid="stExpander"] summary {
         padding: 16px 20px;
-        background-color: #ffffff;
-        border: 1px solid #000000;
+        background-color: #F9F9F7;
+        border: 1px solid #111111;
         border-radius: 0px !important;
     }
     div[data-testid="stExpander"] summary:hover {
-        background-color: #000000 !important;
-        color: #ffffff !important;
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
     }
     div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] summary span {
+        font-family: 'Playfair Display', serif !important;
         font-weight: 700;
-        color: #000000 !important;
+        color: #111111 !important;
     }
     div[data-testid="stExpander"] summary:hover p, div[data-testid="stExpander"] summary:hover span {
-        color: #ffffff !important;
+        color: #F9F9F7 !important;
     }
 
-    /* 侧边栏结构化与极简色调 */
+    /* 侧边栏新闻纸质感 */
     [data-testid="stSidebar"] {
-        background-color: #fafafa !important;
-        border-right: 1px solid #000000 !important;
+        background-color: #E5E5E0 !important;
+        border-right: 2px solid #111111 !important;
+    }
+    [data-testid="stSidebar"] * {
+        font-family: 'Inter', sans-serif !important;
     }
 
-    /* 分割线 */
-    hr {
-        border: none !important;
-        height: 2px;
-        background: #000000 !important;
-        margin: 2rem 0;
-    }
-
-    /* ================= 标签与内容展示 ================= */
+    /* 报纸风格标签 */
     .law-tag {
         display: inline-block;
-        background-color: #000000;
-        color: #ffffff;
+        background-color: #111111;
+        color: #F9F9F7;
         padding: 4px 10px;
         border-radius: 0px !important;
-        font-size: 0.85em;
-        font-weight: 600;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
         margin-bottom: 12px;
-        border: 1px solid #000000;
+        border: 1px solid #111111;
     }
 
+    /* 详细条款排版：衬线体、两端对齐、左侧重黑边 */
     .law-content {
         background-color: #ffffff;
-        border: 1px solid #000000;
-        border-left: 6px solid #000000 !important;
-        padding: 18px 20px;
-        color: #000000;
+        border: 1px solid #111111;
+        border-left: 6px solid #111111 !important;
+        padding: 20px;
+        color: #111111;
         line-height: 1.8;
-        font-size: 0.95em;
+        font-size: 1rem;
         text-align: justify;
         white-space: pre-wrap;
         border-radius: 0px !important;
     }
 
-    /* 术语解释专属卡片样式 */
+    /* 术语卡片与时间轴微调 */
     .term-card {
-        border-left: 6px solid #000000 !important;
+        border-left: 6px solid var(--accent-red) !important;
     }
     .term-source {
+        font-family: 'JetBrains Mono', monospace;
         color: #666666;
-        font-size: 0.85em;
+        font-size: 0.8rem;
         margin-top: 15px;
         text-align: right;
-        font-weight: 600;
     }
 
-    /* ================= 纵向时间轴 ================= */
+    /* 纵向时间轴样式 */
     .timeline-container {
         position: relative;
         padding-left: 30px;
         margin: 30px 0;
-        border-left: 2px solid #000000;
+        border-left: 2px solid #111111;
     }
     .timeline-item {
         position: relative;
@@ -170,47 +168,65 @@ CUSTOM_CSS = """
         width: 12px;
         height: 12px;
         border-radius: 0px !important;
-        background-color: #ffffff;
-        border: 3px solid #000000;
-        box-shadow: none !important;
+        background-color: #F9F9F7;
+        border: 3px solid #111111;
     }
 
-    /* ================= 交互控件 (Inputs & Buttons) ================= */
+    /* 控件设计：无圆角、底部双黑线输入框、强对比按钮 */
     div[data-testid="stTextInput"] input {
-        background-color: #ffffff !important;
-        border: 1px solid #000000 !important;
-        color: #000000 !important;
-        font-weight: 500 !important;
+        background-color: transparent !important;
+        border: none !important;
+        border-bottom: 2px solid #111111 !important;
+        color: #111111 !important;
+        font-family: 'JetBrains Mono', monospace !important;
         border-radius: 0px !important;
         box-shadow: none !important;
     }
     div[data-testid="stTextInput"] input:focus {
-        border-color: #000000 !important;
-        background-color: #000000 !important;
-        color: #ffffff !important;
+        background-color: #E5E5E0 !important;
     }
     div[data-testid="stTextInput"] label {
+        font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
-        color: #000000 !important;
+        text-transform: uppercase;
+        font-size: 0.8rem;
     }
 
     button[kind="primary"], .stButton button {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-        border: 1px solid #000000 !important;
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
+        border: 1px solid #111111 !important;
         border-radius: 0px !important;
+        font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
         box-shadow: none !important;
         transition: background-color 100ms ease, color 100ms ease !important;
     }
     button[kind="primary"]:hover, .stButton button:hover {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #000000 !important;
+        background-color: #F9F9F7 !important;
+        color: #111111 !important;
+        border: 1px solid #111111 !important;
+        box-shadow: 3px 3px 0px 0px #111111 !important;
+    }
+    
+    /* 顶栏报头元数据排版 */
+    .newsprint-masthead {
+        border-top: 3px solid #111111;
+        border-bottom: 1px solid #111111;
+        padding: 8px 0;
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
     }
 </style>
 """
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
 
 DB_FILE = "car_compliance.db"
 
@@ -344,14 +360,14 @@ success_db = init_database_from_excel()
 
 
 # ==================== 4. 侧边栏及页面路由 ====================
-st.sidebar.markdown("### 📖 术语库导航")
-if st.sidebar.button("进入【术语解释总结】页面 ➔" if not st.session_state.show_terms_page else "🔙 退出术语界面", on_click=toggle_terms_page, type="primary"):
+st.sidebar.markdown("### 📰 专栏导航")
+if st.sidebar.button("进入【术语解释总结】专题 ➔" if not st.session_state.show_terms_page else "🔙 返回主检索系统", on_click=toggle_terms_page, type="primary"):
     pass
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🧭 主系统功能")
+st.sidebar.markdown("### 🧭 检索版块")
 nav_mode = st.sidebar.radio(
-    "切换功能模块", 
+    "选择功能模块", 
     ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"],
     disabled=st.session_state.show_terms_page 
 )
@@ -361,11 +377,11 @@ nav_mode = st.sidebar.radio(
 
 if st.session_state.show_terms_page:
     st.button("🔙 返回主合规平台", on_click=toggle_terms_page)
-    st.markdown("<h2 style='text-align: center; color: #000000 !important;'>📖 术语解释总结全库展示</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #666666;'>展示完整的术语释义。支持基于首个英文冒号前关键词的模糊搜索与多国近似词自动联动。</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; border-bottom: 3px solid #111;'>📖 术语解释总结全库专栏</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-family: Lora, serif; color: #666666;'>展示完整的汽车数据及出境合规术语释义，还原现代纸媒专栏的严谨审慎与清晰结构。</p>", unsafe_allow_html=True)
     st.markdown("---")
 
-    term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
+    term_keyword = st.text_input("🔍 检索术语关键字 (如：个人信息、重要数据、GDPR...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
@@ -442,7 +458,7 @@ if st.session_state.show_terms_page:
 
                 st.markdown(
                     f"""
-                    <div class="term-card">
+                    <div class="term-card hard-shadow-hover">
                         <div>{def_html}</div>
                         <div class="term-source">{source_text}</div>
                     </div>
@@ -457,13 +473,25 @@ if st.session_state.show_terms_page:
 
 
 else:
+    # Newsprint 报头结构信息
     st.markdown(
         """
-        <div class="header-card">
-            <h1 style='margin-top:0;'>⚖️ 智能网联汽车跨国数据合规平台</h1>
-            <p style='color:#666666; font-size:1.05em; margin-bottom:0;'>
-                本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的合规指引，支持模块化导航与多维精准检索。<br>
-                致力于为车企出境数据合规提供一站式法律支撑。
+        <div class="newsprint-masthead">
+            <span>VOL. I NO. 01</span>
+            <span>AUTOMOTIVE DATA COMPLIANCE REVIEW</span>
+            <span>GLOBAL EDITION</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """
+        <div class="sharp-card" style="border-top: 4px solid #111;">
+            <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>智能网联汽车跨国数据合规平台</h1>
+            <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
+                全面汇总 <b>中国、欧盟、美国</b> 三大核心司法辖区车外实景影像与关键汽车数据合规指引。<br>
+                秉持绝对清晰的网格架构与严谨审慎的编辑标准，为出境合规提供权威、可靠的决策支撑。
             </p>
         </div>
         """, 
@@ -514,7 +542,7 @@ else:
                 expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
 
                 with st.expander(expander_label, expanded=False):
-                    st.markdown(f"#### {law_title}")
+                    st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
                     st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
 
                     for idx, row in group.reset_index().iterrows():
@@ -527,7 +555,7 @@ else:
 
         elif nav_mode == "🔎 穿透式法规检索":
             keyword = st.sidebar.text_input("🔍 输入检索关键词", placeholder="如：数据出境、GDPR...")
-            st.sidebar.caption("支持模糊搜索法规条款, 标签或分类维度。")
+            st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
 
             if keyword:
                 wildcard = f"%{keyword}%"
@@ -539,7 +567,7 @@ else:
                 """
                 results_df = pd.read_sql(search_query, conn, params=(wildcard,)*5)
 
-                st.markdown(f"**检索结果**：包含 <span style='background-color:#000000; color:#ffffff; font-weight:bold; padding:0 4px;'>“{keyword}”</span> 的内容共 **{len(results_df)}** 条", unsafe_allow_html=True)
+                st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(results_df)}** 条", unsafe_allow_html=True)
                 st.write("")
 
                 grouped_search = results_df.groupby("law_title")
@@ -547,14 +575,14 @@ else:
                     region_name, cat_name = group.iloc[0]["region"], group.iloc[0]["category"]
 
                     with st.expander(f"📌 【{region_name}】 {law_title}"):
-                        st.markdown(f"#### {law_title}")
+                        st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
                         for idx, row in group.reset_index().iterrows():
                             sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
                             if sc0 or sc1:
                                 tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
                                 st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
 
-                            highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#000000; color:#ffffff; font-weight:bold; padding:0 2px;'>{keyword}</span>")
+                            highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:0 2px;'>{keyword}</span>")
                             st.markdown(f'<div class="law-content">{highlighted_content}</div>', unsafe_allow_html=True)
             else:
                 st.info("👈 请在左侧侧边栏输入关键词以获取检索结果。")
@@ -579,7 +607,7 @@ else:
 
             for i, p_info in enumerate(timeline_phases):
                 with phase_tabs[i]:
-                    st.markdown(f"#### {p_info['title']}")
+                    st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{p_info['title']}</h4>", unsafe_allow_html=True)
                     st.info(p_info['desc'])
 
                     if i == 0:
@@ -603,9 +631,9 @@ else:
                         timeline_card_html = f"""
                         <div class="timeline-item">
                             <div class="timeline-node"></div>
-                            <div class="timeline-card">
+                            <div class="timeline-card hard-shadow-hover">
                                 <span class="law-tag">{tag_str}</span>
-                                <h4 style="margin-top: 5px; color: #000000;">{law_t}</h4>
+                                <h4 style="margin-top: 5px; color: #111111; font-family: Playfair Display, serif; border-bottom: none;">{law_t}</h4>
                                 <div class="law-content" style="margin-bottom: 0;">{content}</div>
                             </div>
                         </div>
