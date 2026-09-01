@@ -46,7 +46,7 @@ NEWSPRINT_CSS = """
         background-color: transparent !important;
     }
 
-    /* 全局字体定义：精确作用于文本容器，避免影响 Streamlit 内部图标 span */
+    /* 全局字体定义：避开 span 标签，防止干扰内部图标 */
     html, body, p, label, li, .law-content {
         font-family: 'Lora', Georgia, serif;
         color: var(--text-primary);
@@ -79,7 +79,7 @@ NEWSPRINT_CSS = """
         transform: translate(-2px, -2px);
     }
 
-    /* Expander 严格零圆角和报纸风折叠头 */
+    /* Expander 严格零圆角和报纸风折叠头，并彻底隐藏 arrow 图标防止文字重叠 */
     div[data-testid="stExpander"] { padding: 0 !important; }
     div[data-testid="stExpander"] summary {
         padding: 16px 20px;
@@ -87,16 +87,24 @@ NEWSPRINT_CSS = """
         border: 1px solid #111111;
         border-radius: 0px !important;
     }
+    /* 彻底隐藏折叠图标字体（如 arrow_right / arrow_down），让其不占位、不重叠 */
+    div[data-testid="stExpander"] summary span[data-testid="stExpanderToggleIcon"] {
+        font-size: 0px !important;
+        color: transparent !important;
+        width: 0px !important;
+        display: none !important;
+    }
     div[data-testid="stExpander"] summary:hover {
         background-color: #111111 !important;
         color: #F9F9F7 !important;
     }
-    div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] summary span {
+    div[data-testid="stExpander"] summary p {
         font-family: 'Playfair Display', serif !important;
         font-weight: 700;
         color: #111111 !important;
+        margin: 0 !important;
     }
-    div[data-testid="stExpander"] summary:hover p, div[data-testid="stExpander"] summary:hover span {
+    div[data-testid="stExpander"] summary:hover p {
         color: #F9F9F7 !important;
     }
 
