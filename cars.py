@@ -260,20 +260,20 @@ def init_database_from_excel():
     df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
     cursor.execute("DELETE FROM compliance_laws")
 
-    # 表格结构定义：
-    # 第 0 行 (iloc[0]): 辖区 + 模块
-    # 第 1 行 (iloc[1]): 法律名称
-    # 前三列 (col 0, 1, 2): 适用场景标签 (sub_cat)
-    # 从第 3 列开始 (col_idx >= 3) 为具体的法律条款列，每个单元格独立切分
+    # 动态表格结构解析：
+    # 第 0 行 (iloc[0]): 辖区 + 大模块分类
+    # 第 1 行 (iloc[1]): 法律法规名称
+    # 前三列 (col 0, 1, 2): 适用场景标签维度 (sub_cat)
+    # 从第 3 列开始 (col_idx >= 3) 往右的所有列，均为独立的法律条款列
     categories_row = df_raw.iloc[0]
     titles_row = df_raw.iloc[1]
 
-    # 读取前三列作为适用场景依据
+    # 读取前三列内容作为标签映射基础
     col0_raw = df_raw.iloc[:, 0] if len(df_raw.columns) > 0 else pd.Series([""] * len(df_raw))
     col1_raw = df_raw.iloc[:, 1] if len(df_raw.columns) > 1 else pd.Series([""] * len(df_raw))
     col2_raw = df_raw.iloc[:, 2] if len(df_raw.columns) > 2 else pd.Series([""] * len(df_raw))
 
-    # 从第 3 列（索引 3）开始，逐列扫描
+    # 【全自动动态扫描】从第 3 列（索引 3）开始，一直向右扫描到整张表格的最右侧列
     for col_idx in range(3, len(df_raw.columns)):
         cat_name = str(categories_row.iloc[col_idx]).strip()
         law_title = str(titles_row.iloc[col_idx]).strip()
@@ -287,7 +287,9 @@ def init_database_from_excel():
         category = cat_name if cat_name and cat_name != "nan" else "通用效力模块"
 
         has_content = False
-        # 从第 3 行开始（索引从 2 开始），对该列的每一个单元格进行独立识别与入库
+        
+        # 针对当前列，自第 3 行（索引 2）开始，逐行检查每一个单元格
+        # 只要该单元格有独立内容，就立刻作为一个独立条文存入数据库，实现百分之百自适应切分
         for row_idx in range(2, len(df_raw)):
             cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
             cell_val = cell_obj.value
@@ -296,11 +298,10 @@ def init_database_from_excel():
             s1 = str(col1_raw.iloc[row_idx]).strip()
             s2 = str(col2_raw.iloc[row_idx]).strip() if len(df_raw.columns) > 2 else ""
 
-            # 对应前三列作为适用场景标签（若为空则保留空）
             sub_c0 = s0 if s0 and s0 != "nan" else ""
             sub_c1 = " / ".join([x for x in [s1, s2] if x and x != "nan"])
 
-            # 严格识别每一个非空单元格，做到“一个格子对应一条记录”
+            # 核心：精准识别每一个非空单元格（无视您后面怎么切分、加多少行）
             if cell_val is not None and str(cell_val).strip() != "nan":
                 content_str = get_clean_cell_text(cell_obj)
                 if content_str and content_str != "nan":
