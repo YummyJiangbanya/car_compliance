@@ -46,8 +46,8 @@ NEWSPRINT_CSS = """
         background-color: transparent !important;
     }
 
-    /* 全局字体强制归位 */
-    html, body, [class*="css"], p, span, div, label, li {
+    /* 全局字体定义：精确作用于文本容器，避免影响 Streamlit 内部图标 span */
+    html, body, p, label, li, .law-content {
         font-family: 'Lora', Georgia, serif;
         color: var(--text-primary);
     }
@@ -69,7 +69,7 @@ NEWSPRINT_CSS = """
         border: 1px solid #111111 !important;
         border-radius: 0px !important;
         box-shadow: none !important;
-        transition: all 150s cubic-bezier(0, 0, 0.2, 1);
+        transition: all 150ms cubic-bezier(0, 0, 0.2, 1);
         padding: 24px;
         margin-bottom: 20px;
     }
@@ -107,6 +107,27 @@ NEWSPRINT_CSS = """
     }
     [data-testid="stSidebar"] * {
         font-family: 'Inter', sans-serif !important;
+    }
+
+    /* 侧边栏“专栏导航”跳转按钮独立配色：默认白底黑字，悬停黑底白字 */
+    [data-testid="stSidebar"] .stButton button {
+        background-color: #F9F9F7 !important;
+        color: #111111 !important;
+        border: 1px solid #111111 !important;
+        border-radius: 0px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        box-shadow: none !important;
+        width: 100%;
+        transition: background-color 100ms ease, color 100ms ease !important;
+    }
+    [data-testid="stSidebar"] .stButton button:hover {
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
+        border: 1px solid #111111 !important;
+        box-shadow: 3px 3px 0px 0px #111111 !important;
     }
 
     /* 报纸风格标签 */
@@ -172,7 +193,7 @@ NEWSPRINT_CSS = """
         border: 3px solid #111111;
     }
 
-    /* 控件设计：无圆角、底部双黑线输入框、强对比按钮 */
+    /* 控件设计：无圆角、底部双黑线输入框 */
     div[data-testid="stTextInput"] input {
         background-color: transparent !important;
         border: none !important;
@@ -192,25 +213,6 @@ NEWSPRINT_CSS = """
         font-size: 0.8rem;
     }
 
-    button[kind="primary"], .stButton button {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
-        border: 1px solid #111111 !important;
-        border-radius: 0px !important;
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        box-shadow: none !important;
-        transition: background-color 100ms ease, color 100ms ease !important;
-    }
-    button[kind="primary"]:hover, .stButton button:hover {
-        background-color: #F9F9F7 !important;
-        color: #111111 !important;
-        border: 1px solid #111111 !important;
-        box-shadow: 3px 3px 0px 0px #111111 !important;
-    }
-    
     /* 顶栏报头元数据排版 */
     .newsprint-masthead {
         border-top: 3px solid #111111;
@@ -361,7 +363,7 @@ success_db = init_database_from_excel()
 
 # ==================== 4. 侧边栏及页面路由 ====================
 st.sidebar.markdown("### 📰 专栏导航")
-if st.sidebar.button("进入【术语解释总结】专题 ➔" if not st.session_state.show_terms_page else "🔙 返回主检索系统", on_click=toggle_terms_page, type="primary"):
+if st.sidebar.button("进入【术语解释总结】专题 ➔" if not st.session_state.show_terms_page else "🔙 返回主检索系统", on_click=toggle_terms_page):
     pass
 
 st.sidebar.markdown("---")
