@@ -10,7 +10,6 @@ st.set_page_config(
     page_title="智能网联汽车与跨国数据合规检索平台",
     page_icon="⚖️", 
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
 # 初始化 Session State，用于控制术语界面的显示/隐藏
@@ -20,174 +19,146 @@ if "show_terms_page" not in st.session_state:
 def toggle_terms_page():
     st.session_state.show_terms_page = not st.session_state.show_terms_page
 
-# ==================== 2. 全局 CSS 样式与 UI 设计系统 (蓝白色调) ====================
+# ==================== 2. 全局 CSS 样式 ====================
 CUSTOM_CSS = """
 <style>
-    /* ================= 设计系统变量 (蓝白色调) ================= */
-    :root {
-        --bg-base: #f4f8fc;
-        --bg-surface: #ffffff;
-        --text-primary: #1e293b;
-        --text-muted: #64748b;
-        --border-subtle: #e2e8f0;
-        --border-light: #cbd5e1;
-        --accent-color: #2563eb;
-        --accent-glow: rgba(37, 99, 235, 0.15);
-        --easing-primary: cubic-bezier(0.16, 1, 0.3, 1);
-        --easing-hover: ease-out;
-    }
-
-    /* 页面基础背景 */
-    [data-testid="stAppViewContainer"] {
-        background-color: var(--bg-base) !important;
-        color: var(--text-primary) !important;
-    }
-    
-    [data-testid="stHeader"] {
-        background-color: transparent !important;
-    }
-
-    /* 全局字体与文字颜色 */
-    html, body, [class*="css"], p, span, div, label, li {
+    /* 全局字体 */
+    html, body, [class*="css"] {
         font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
-        color: var(--text-primary);
     }
 
-    /* ================= 动画与入场效果 ================= */
-    @keyframes fadeUp {
-        0% { opacity: 0; transform: translateY(16px); }
-        100% { opacity: 1; transform: translateY(0); }
+    /* 背景色 */
+    [data-testid="stAppViewContainer"] {
+        background-color: #f0f2f6; 
     }
 
-    /* 标题统一样式 */
-    h1, h2, h3, h4 {
-        color: #1d4ed8 !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.3px;
-    }
-
-    /* ================= 核心组件样式 (Cards & Expanders) ================= */
-    .header-card, div[data-testid="stExpander"], .term-card, .timeline-card {
-        background-color: var(--bg-surface) !important;
-        border: 1px solid var(--border-subtle) !important;
+    /* 顶部标题区卡片化 */
+    .header-card {
+        background-color: #ffffff;
+        padding: 25px 30px;
         border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.04);
-        transition: transform 300ms var(--easing-primary), box-shadow 300ms var(--easing-primary), border-color 300ms var(--easing-primary);
-        animation: fadeUp 500ms var(--easing-primary) forwards;
-        margin-bottom: 20px;
-        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border-top: 5px solid #1a5276;
+        margin-bottom: 25px;
     }
 
-    /* 悬浮微交互 */
-    .header-card:hover, div[data-testid="stExpander"]:hover, .term-card:hover, .timeline-card:hover {
-        transform: translateY(-2px);
-        border-color: var(--accent-color) !important;
-        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+    h1, h2, h3 {
+        color: #1a5276 !important; 
+        font-weight: 600 !important;
     }
 
-    /* Expander 内部定制 */
-    div[data-testid="stExpander"] { padding: 0 !important; }
-    div[data-testid="stExpander"] summary {
-        padding: 12px 18px;
-        background-color: #f8fafc;
-        border-radius: 8px;
-    }
-    div[data-testid="stExpander"] summary p {
-        font-weight: 600;
-        color: #1e3a8a !important;
-    }
-
-    /* 侧边栏卡片化与清爽色调 */
     [data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        border-right: 1px solid var(--border-subtle) !important;
+        background-color: #ffffff;
+        border-right: 1px solid #e0e0e0;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.02);
     }
 
-    /* 分割线 */
-    hr {
-        border: none !important;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, #cbd5e1, transparent) !important;
-        margin: 2rem 0;
+    div[data-testid="stExpander"] {
+        background-color: #ffffff;
+        border: 1px solid #e6e9f0;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        margin-bottom: 15px;
+    }
+    div[data-testid="stExpander"] summary {
+        background-color: #fafbfc;
+        color: #2c3e50;
+        font-weight: 600;
+        padding: 10px 15px;
     }
 
-    /* ================= 标签与内容展示 ================= */
     .law-tag {
         display: inline-block;
-        background-color: #eff6ff;
-        color: #1d4ed8;
+        background-color: #e8f0fe;
+        color: #1a5276;
         padding: 4px 12px;
-        border-radius: 6px;
+        border-radius: 15px;
         font-size: 0.85em;
         font-weight: 600;
-        margin-bottom: 12px;
-        border: 1px solid #dbeafe;
+        margin-bottom: 10px;
+        border: 1px solid #c6dafc;
     }
 
     .law-content {
-        background-color: #f8fafc;
-        border-left: 3px solid #2563eb;
+        background-color: #fafafa;
+        border-left: 4px solid #1a5276;
         padding: 15px 20px;
-        color: #334155;
+        color: #444444;
         line-height: 1.8;
         font-size: 0.95em;
+        margin-bottom: 10px;
         text-align: justify;
+        /* 核心：完美保留你在 Excel 单元格中通过回车打出来的换行格式 */
         white-space: pre-wrap;
-        border-radius: 0 8px 8px 0;
     }
 
     /* 术语解释专属卡片样式 */
     .term-card {
-        border-left: 3px solid #f59e0b !important;
-    }
-    .term-source {
-        color: #64748b;
-        font-size: 0.85em;
-        margin-top: 15px;
-        text-align: right;
-        font-weight: 500;
+        background-color: #fdfefe;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-left: 4px solid #e67e22;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        color: #333;
+        line-height: 1.7;
+        font-size: 0.95em;
+        white-space: pre-wrap;
     }
 
-    /* ================= 纵向时间轴 ================= */
+    .term-source {
+        color: #7f8c8d;
+        font-size: 0.95em;
+        margin-top: 15px;
+        text-align: right;
+        font-weight: bold;
+    }
+
+    /* 纵向时间轴美化样式 */
     .timeline-container {
         position: relative;
         padding-left: 30px;
-        margin: 30px 0;
-        border-left: 2px solid #93c5fd;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border-left: 3px solid #1a5276;
     }
     .timeline-item {
         position: relative;
-        margin-bottom: 35px;
-        animation: fadeUp 500ms var(--easing-primary) forwards;
+        margin-bottom: 30px;
     }
     .timeline-node {
         position: absolute;
-        left: -37px;
-        top: 18px;
-        width: 12px;
-        height: 12px;
+        left: -37.5px;
+        top: 0px;
+        width: 18px;
+        height: 18px;
         border-radius: 50%;
+        background-color: #1a5276;
+        border: 3px solid #ffffff;
+        box-shadow: 0 0 0 2px #1a5276;
+    }
+    .timeline-card {
         background-color: #ffffff;
-        border: 3px solid #2563eb;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        border: 1px solid #e1e8ed;
     }
 
-    /* ================= 交互控件 (Inputs & Buttons) ================= */
     div[data-testid="stTextInput"] input {
         background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
-        color: #1e293b !important;
-        font-weight: 500 !important;
-        border-radius: 8px !important;
-        transition: all 200ms var(--easing-primary);
+        border: 2px solid #1a5276 !important;
+        color: #1a5276 !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
     }
     div[data-testid="stTextInput"] input:focus {
-        border-color: #2563eb !important;
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+        border-color: #2980b9 !important;
+        box-shadow: 0 0 8px rgba(41, 128, 185, 0.4) !important;
     }
     div[data-testid="stTextInput"] label {
-        font-weight: 600 !important;
-        color: #1e3a8a !important;
+        font-weight: bold !important;
+        color: #1a5276 !important;
     }
 </style>
 """
@@ -335,8 +306,8 @@ nav_mode = st.sidebar.radio(
 
 if st.session_state.show_terms_page:
     st.button("🔙 返回主合规平台", on_click=toggle_terms_page)
-    st.markdown("<h2 style='text-align: center; color: #d97706 !important;'>📖 术语解释总结全库展示</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #64748b;'>展示完整的术语释义。支持基于首个英文冒号前关键词的模糊搜索与多国近似词自动联动。</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #e67e22 !important;'>📖 术语解释总结全库展示</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #555;'>展示完整的术语释义。支持基于首个英文冒号前关键词的模糊搜索与多国近似词自动联动。</p>", unsafe_allow_html=True)
     st.markdown("---")
 
     term_keyword = st.text_input("🔍 输入术语关键词 (如：个人信息、sell、重要数据...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
@@ -435,7 +406,7 @@ else:
         """
         <div class="header-card">
             <h1 style='margin-top:0;'>⚖️ 智能网联汽车跨国数据合规平台</h1>
-            <p style='color:#64748b; font-size:1.05em; margin-bottom:0;'>
+            <p style='color:#555; font-size:1.05em; margin-bottom:0;'>
                 本系统集成 <b>中国、欧盟、美国</b> 三大核心司法辖区的合规指引，支持模块化导航与多维精准检索。<br>
                 致力于为车企出境数据合规提供一站式法律支撑。
             </p>
@@ -513,7 +484,7 @@ else:
                 """
                 results_df = pd.read_sql(search_query, conn, params=(wildcard,)*5)
 
-                st.markdown(f"**检索结果**：包含 <span style='color:#2563eb; font-weight:bold;'>“{keyword}”</span> 的内容共 **{len(results_df)}** 条", unsafe_allow_html=True)
+                st.markdown(f"**检索结果**：包含 <span style='color:#c0392b; font-weight:bold;'>“{keyword}”</span> 的内容共 **{len(results_df)}** 条", unsafe_allow_html=True)
                 st.write("")
 
                 grouped_search = results_df.groupby("law_title")
@@ -528,7 +499,7 @@ else:
                                 tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
                                 st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
 
-                            highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#dbeafe; color:#1d4ed8; font-weight:bold; padding:0 2px; border-radius:2px;'>{keyword}</span>")
+                            highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#ffeaa7; font-weight:bold;'>{keyword}</span>")
                             st.markdown(f'<div class="law-content">{highlighted_content}</div>', unsafe_allow_html=True)
             else:
                 st.info("👈 请在左侧侧边栏输入关键词以获取检索结果。")
@@ -579,7 +550,7 @@ else:
                             <div class="timeline-node"></div>
                             <div class="timeline-card">
                                 <span class="law-tag">{tag_str}</span>
-                                <h4 style="margin-top: 5px; color: #1d4ed8;">{law_t}</h4>
+                                <h4 style="margin-top: 5px; color: #1a5276;">{law_t}</h4>
                                 <div class="law-content" style="margin-bottom: 0;">{content}</div>
                             </div>
                         </div>
