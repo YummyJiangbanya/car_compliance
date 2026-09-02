@@ -4,6 +4,7 @@ import sqlite3
 import pandas as pd
 import openpyxl
 import streamlit as st
+
 # ==================== 1. 页面配置 ====================
 st.set_page_config(
     page_title="智能网联汽车与跨国数据合规检索平台 | Newsprint Edition",
@@ -11,14 +12,16 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-# 初始化 Session State：默认进入“首页”
+
+# 初始化 Session State
 if "nav_choice" not in st.session_state:
     st.session_state.nav_choice = "首页"
 if "show_terms_page" not in st.session_state:
     st.session_state.show_terms_page = False
 if "selected_case" not in st.session_state:
     st.session_state.selected_case = None
-# ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格重构) ====================
+
+# ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格) ====================
 NEWSPRINT_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
@@ -31,7 +34,7 @@ NEWSPRINT_CSS = """
         --accent-red: #CC0000;
         --divider-grey: #E5E5E0;
     }
-    /* 页面基础背景与网纹 */
+    /* 页面基础背景 */
     [data-testid="stAppViewContainer"] {
         background-color: var(--bg-base) !important;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23111111' fill-opacity='0.04' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E") !important;
@@ -41,12 +44,12 @@ NEWSPRINT_CSS = """
     [data-testid="stHeader"] {
         background-color: transparent !important;
     }
-    /* 全局字体定义：避开 span 标签，防止干扰内部图标 */
+    /* 全局字体定义 */
     html, body, p, label, li, .law-content {
         font-family: 'Lora', Georgia, serif;
         color: var(--text-primary);
     }
-    /* 标题统合为 Playfair Display 衬线大标题 */
+    /* 标题统合 */
     h1, h2, h3, h4 {
         font-family: 'Playfair Display', 'Times New Roman', serif !important;
         color: #111111 !important;
@@ -70,7 +73,7 @@ NEWSPRINT_CSS = """
         box-shadow: 4px 4px 0px 0px #111111 !important;
         transform: translate(-2px, -2px);
     }
-    /* Expander 严格零圆角和报纸风折叠头，并彻底隐藏 arrow 图标防止文字重叠 */
+    /* Expander 样式调整 */
     div[data-testid="stExpander"] { padding: 0 !important; }
     div[data-testid="stExpander"] summary {
         padding: 16px 20px;
@@ -101,20 +104,17 @@ NEWSPRINT_CSS = """
     [data-testid="stSidebar"] {
         display: none !important;
     }
-    /* 顶端五个核心导航链接样式：按照用户最新要求修改（无方框包裹，挨在一起，底部黑色细线，无灰色细线，顶端竖线与文字底部对齐） */
+    /* 顶端导航链接 */
     .nav-tabs-container {
         display: flex;
-        border-bottom: 1px solid #111111;
-        background-color: transparent;
+        border: 1px solid #111111;
+        background-color: #F9F9F7;
         margin-bottom: 25px;
-        padding-bottom: 0px;
-        gap: 0px;
     }
     .nav-tab-item {
         flex: 1;
         text-align: center;
         border-right: 1px solid #111111;
-        position: relative;
     }
     .nav-tab-item:last-child {
         border-right: none;
@@ -131,34 +131,20 @@ NEWSPRINT_CSS = """
         letter-spacing: 0.05em;
         box-shadow: none !important;
         width: 100% !important;
-        padding: 8px 0px 12px 0px !important;
+        padding: 12px 0px !important;
         margin: 0px !important;
         text-align: center;
-        position: relative;
-    }
-    .nav-tab-item button::after {
-        content: "";
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background-color: transparent;
-        transition: background-color 100ms ease;
-    }
-    .nav-tab-item button:hover::after,
-    .nav-tab-active button::after {
-        background-color: #111111 !important;
+        transition: all 100ms ease !important;
     }
     .nav-tab-item button:hover {
-        background-color: transparent !important;
-        color: #111111 !important;
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
     }
     .nav-tab-active button {
-        background-color: transparent !important;
-        color: #111111 !important;
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
     }
-    /* 主标题旁的“术语解释总结”按钮样式 */
+    /* 术语按钮样式 */
     .inline-term-btn button {
         background-color: #F9F9F7 !important;
         color: #111111 !important;
@@ -191,10 +177,11 @@ NEWSPRINT_CSS = """
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
+        margin-right: 6px;
         border: 1px solid #111111;
     }
-    /* 详细条款排版：衬线体、两端对齐、左侧重黑边 */
+    /* 条款排版 */
     .law-content {
         background-color: #ffffff;
         border: 1px solid #111111;
@@ -207,7 +194,7 @@ NEWSPRINT_CSS = """
         white-space: pre-wrap;
         border-radius: 0px !important;
     }
-    /* 术语卡片与时间轴微调 */
+    /* 术语卡片 */
     .term-card {
         border-left: 6px solid var(--accent-red) !important;
     }
@@ -218,7 +205,7 @@ NEWSPRINT_CSS = """
         margin-top: 15px;
         text-align: right;
     }
-    /* 纵向时间轴样式 */
+    /* 时间轴 */
     .timeline-container {
         position: relative;
         padding-left: 30px;
@@ -239,7 +226,7 @@ NEWSPRINT_CSS = """
         background-color: #F9F9F7;
         border: 3px solid #111111;
     }
-    /* 控件设计：无圆角、底部双黑线输入框 */
+    /* 输入框设计 */
     div[data-testid="stTextInput"] input {
         background-color: transparent !important;
         border: none !important;
@@ -258,7 +245,7 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         font-size: 0.8rem;
     }
-    /* 顶栏报头元数据排版 */
+    /* 报头元数据 */
     .newsprint-masthead {
         border-top: 3px solid #111111;
         border-bottom: 1px solid #111111;
@@ -275,6 +262,7 @@ NEWSPRINT_CSS = """
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
 DB_FILE = "car_compliance.db"
+
 # ==================== 3. 核心处理与数据库函数 ====================
 def extract_sort_key(text):
     match_cn = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
@@ -292,8 +280,9 @@ def extract_sort_key(text):
         try: return int(match_en.group(1))
         except ValueError: pass
     return 999
+
 def get_clean_cell_text(cell):
-    if not cell.value or str(cell.value).strip() == "nan":
+    if cell.value is None or str(cell.value).strip() == "nan":
         return ""
     
     is_rich = hasattr(cell, 'value') and isinstance(cell.value, openpyxl.cell.rich_text.CellRichText)
@@ -303,12 +292,33 @@ def get_clean_cell_text(cell):
         full_text = str(cell.value)
     
     return full_text.strip()
+
 @st.cache_data
 def init_database_from_excel():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    excel_path = os.path.join(current_dir, "合规平台条文整理（修改4.0）_2.xlsx")
-    if not os.path.exists(excel_path):
-        excel_path = os.path.join(current_dir, "合规平台条文整理（修改1.0）.xlsx")
+    
+    # 智能查找最新的 Excel 文件
+    possible_names = [
+        "合规平台条文整理（修改4.0）_4.xlsx",
+        "合规平台条文整理（修改4.0）.xlsx",
+        "合规平台条文整理（修改1.0）.xlsx",
+        "合规平台条文整理 (1).xlsx"
+    ]
+    excel_path = None
+    for fname in possible_names:
+        p = os.path.join(current_dir, fname)
+        if os.path.exists(p):
+            excel_path = p
+            break
+    if not excel_path:
+        for fname in os.listdir(current_dir):
+            if fname.endswith(".xlsx") and "合规平台" in fname:
+                excel_path = os.path.join(current_dir, fname)
+                break
+
+    if not excel_path or not os.path.exists(excel_path):
+        return False
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -323,83 +333,118 @@ def init_database_from_excel():
             sort_order INTEGER
         )
     """)
-    if not os.path.exists(excel_path):
-        conn.close()
-        return False
+    cursor.execute("DELETE FROM compliance_laws")
+
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
     df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
-    cursor.execute("DELETE FROM compliance_laws")
+
     categories_row = df_raw.iloc[0]
     titles_row = df_raw.iloc[1]
     col0_raw = df_raw.iloc[:, 0] if len(df_raw.columns) > 0 else pd.Series([""] * len(df_raw))
     col1_raw = df_raw.iloc[:, 1] if len(df_raw.columns) > 1 else pd.Series([""] * len(df_raw))
     col2_raw = df_raw.iloc[:, 2] if len(df_raw.columns) > 2 else pd.Series([""] * len(df_raw))
-    
+
+    laws_dict = {}
+    laws_order = []
+    all_law_columns = []
+
+    # 遍历第 3 列及以后的所有列（法规列）
     for col_idx in range(3, len(df_raw.columns)):
-        cat_name = str(categories_row.iloc[col_idx]).strip()
+        cat_raw = str(categories_row.iloc[col_idx]).strip()
         law_title = str(titles_row.iloc[col_idx]).strip()
-        if not law_title or law_title == "nan": 
+
+        if not law_title or law_title == "nan":
             continue
-        region = "中国"
-        if "欧盟" in cat_name: region = "欧盟"
-        elif "美国" in cat_name: region = "美国"
-        category = cat_name if cat_name and cat_name != "nan" else "通用效力模块"
-        has_content = False
-        
+
+        # 第一行精准拆分 司法辖区 与 合规模块
+        if "-" in cat_raw:
+            parts = cat_raw.split("-", 1)
+            region = parts[0].strip()
+            category = parts[1].strip()
+        elif "—" in cat_raw:
+            parts = cat_raw.split("—", 1)
+            region = parts[0].strip()
+            category = parts[1].strip()
+        elif "–" in cat_raw:
+            parts = cat_raw.split("–", 1)
+            region = parts[0].strip()
+            category = parts[1].strip()
+        else:
+            if "欧盟" in cat_raw:
+                region = "欧盟"
+                category = cat_raw.replace("欧盟", "").strip() or "通用模块"
+            elif "美国" in cat_raw:
+                region = "美国"
+                category = cat_raw.replace("美国", "").strip() or "通用模块"
+            elif "中国" in cat_raw:
+                region = "中国"
+                category = cat_raw.replace("中国", "").strip() or "通用模块"
+            else:
+                region = "中国"
+                category = cat_raw if cat_raw and cat_raw != "nan" else "通用模块"
+
+        all_law_columns.append((region, category, law_title))
+
+        # 遍历全列的所有数据单元格（第 2 行开始）
         for row_idx in range(2, len(df_raw)):
             cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
-            cell_val = cell_obj.value
-            
-            s0 = str(col0_raw.iloc[row_idx]).strip()
-            s1 = str(col1_raw.iloc[row_idx]).strip()
-            s2 = str(col2_raw.iloc[row_idx]).strip() if len(df_raw.columns) > 2 else ""
-            sub_c0 = s0 if s0 and s0 != "nan" else ""
-            sub_c1 = " / ".join([x for x in [s1, s2] if x and x != "nan"])
-            
-            if cell_val is not None and str(cell_val).strip() != "nan":
-                content_str = get_clean_cell_text(cell_obj)
-                if content_str and content_str != "nan":
-                    has_content = True
-                    sort_val = extract_sort_key(content_str)
-                    
-                    # 检查是否已有相同内容条文存在；若内容完全相同，则合并或拼接适用场景（sub_cat）
-                    cursor.execute(
-                        """SELECT id, sub_cat_0, sub_cat_1 FROM compliance_laws 
-                            WHERE region=? AND category=? AND law_title=? AND content=?""",
-                        (region, category, law_title, content_str)
-                    )
-                    existing_row = cursor.fetchone()
-                    
-                    if existing_row:
-                        ex_id, ex_s0, ex_s1 = existing_row[0], existing_row[1], existing_row[2]
-                        # 检查当前适用场景是否已包含在其中，若不包含则进行拼接展示不同适用场景
-                        new_tag_parts = [p for p in [sub_c0, sub_c1] if p and p != "暂无指引"]
-                        existing_tag_str = f"{ex_s0}" + (f" ➔ {ex_s1}" if ex_s1 else "")
-                        current_tag_str = f"{sub_c0}" + (f" ➔ {sub_c1}" if sub_c1 else "")
-                        
-                        if current_tag_str and current_tag_str not in existing_tag_str:
-                            merged_s1 = f"{ex_s1}；{current_tag_str}" if ex_s1 else current_tag_str
-                            cursor.execute(
-                                "UPDATE compliance_laws SET sub_cat_1 = ? WHERE id = ?",
-                                (merged_s1, ex_id)
-                            )
-                    else:
-                        cursor.execute(
-                            "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (region, category, law_title, sub_c0, sub_c1, content_str, sort_val)
-                        )
-        if not has_content:
+            content_str = get_clean_cell_text(cell_obj)
+
+            if content_str and content_str != "nan":
+                # 拼接第 0、1、2 列作为适用场景
+                s0 = str(col0_raw.iloc[row_idx]).strip()
+                s1 = str(col1_raw.iloc[row_idx]).strip()
+                s2 = str(col2_raw.iloc[row_idx]).strip() if len(df_raw.columns) > 2 else ""
+
+                sc_parts = [x for x in [s0, s1, s2] if x and x != "nan"]
+                scenario_text = " ➔ ".join(sc_parts) if sc_parts else "通用指引"
+
+                sort_val = extract_sort_key(content_str)
+                key = (region, category, law_title, content_str)
+
+                # 识别重复法条：若同一个法规下的法条内容完全一样，合并条目并累计不同的适用场景
+                if key not in laws_dict:
+                    laws_dict[key] = {
+                        "region": region,
+                        "category": category,
+                        "law_title": law_title,
+                        "content": content_str,
+                        "sort_order": sort_val,
+                        "scenarios": []
+                    }
+                    laws_order.append(key)
+
+                if scenario_text not in laws_dict[key]["scenarios"]:
+                    laws_dict[key]["scenarios"].append(scenario_text)
+
+    # 将合并后的法条数据写入 SQLite 数据库
+    processed_laws = set()
+    for key in laws_order:
+        item = laws_dict[key]
+        combined_scenarios = " | ".join(item["scenarios"])
+        cursor.execute(
+            "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (item["region"], item["category"], item["law_title"], combined_scenarios, "", item["content"], item["sort_order"])
+        )
+        processed_laws.add((item["region"], item["category"], item["law_title"]))
+
+    # 保留占位（应对暂无可检索条文的法规列）
+    for (r, c, lt) in set(all_law_columns):
+        if (r, c, lt) not in processed_laws:
             cursor.execute(
                 "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (region, category, law_title, "暂无分类", "暂无指引", "（该法规条文正在整理补充中，敬请期待...）", 999)
+                (r, c, lt, "暂无分类", "暂无指引", "（该法规条文正在整理补充中，敬请期待...）", 999)
             )
+
     conn.commit()
     conn.close()
     return True
+
 success_db = init_database_from_excel()
-# ==================== 4. 网页最顶端：仿 Enforcement Tracker 风格的 5 个连续卡片选项卡 ====================
+
+# ==================== 4. 顶端导航选项卡 ====================
 nav_items = [
     ("首页", "首页"),
     ("法律库", "法律库"),
@@ -407,18 +452,20 @@ nav_items = [
     ("案例库", "案例库"),
     ("关于我们", "关于我们")
 ]
+
 top_cols = st.columns(5)
 for idx, (label, choice_key) in enumerate(nav_items):
     with top_cols[idx]:
         is_active = (st.session_state.nav_choice == choice_key)
-        active_style_class = " nav-tab-active" if is_active else ""
-        st.markdown(f'<div class="nav-tab-item{active_style_class}">', unsafe_allow_html=True)
+        active_style_class = "nav-tab-active" if is_active else ""
+        st.markdown(f'<div class="nav-tab-item {active_style_class}" style="border:none; margin-bottom:15px;">', unsafe_allow_html=True)
         if st.button(label, key=f"nav_btn_{idx}", use_container_width=True):
             st.session_state.nav_choice = choice_key
             st.session_state.show_terms_page = False
             st.session_state.selected_case = None
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+
 # ==================== 5. 页面展示逻辑 ====================
 if st.session_state.show_terms_page:
     st.markdown("<h2 style='text-align: center; border-bottom: 3px solid #111;'>📖 术语解释总结全库专栏</h2>", unsafe_allow_html=True)
@@ -677,7 +724,9 @@ else:
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("📁 合规模块", categories)
+
                 keyword = st.text_input("🔍 穿透式法规检索关键词", placeholder="如：数据出境、GDPR...")
+                
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
                 conditions = []
                 params = []
@@ -694,28 +743,32 @@ else:
                 if conditions:
                     query += " WHERE " + " AND ".join(conditions)
                 query += " ORDER BY region, category, sort_order"
+
                 module_df = pd.read_sql(query, conn, params=tuple(params))
+
                 if keyword:
                     st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
                 else:
                     st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
-                grouped = module_df.groupby("law_title")
-                for law_title, group in grouped:
-                    region_name = group.iloc[0]["region"]
-                    cat_name = group.iloc[0]["category"]
+
+                grouped = module_df.groupby(["region", "category", "law_title"], sort=False)
+                for (region_name, cat_name, law_title), group in grouped:
                     expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
                     with st.expander(expander_label, expanded=False):
                         st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
                         st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
                         for idx, row in group.reset_index().iterrows():
-                            sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
-                            if sc0 or sc1:
-                                tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
-                                st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
+                            sc0 = row["sub_cat_0"]
+                            if sc0:
+                                # 展示合并后的所有适用场景标签
+                                tags = [t.strip() for t in sc0.split("|") if t.strip()]
+                                tags_html = "".join([f'<span class="law-tag">💡 {t}</span>' for t in tags])
+                                st.markdown(tags_html, unsafe_allow_html=True)
                             content_text = row["content"]
                             if keyword:
                                 content_text = content_text.replace(keyword, f"<span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:0 2px;'>{keyword}</span>")
                             st.markdown(f'<div class="law-content">{content_text}</div>', unsafe_allow_html=True)
+
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
                 st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
@@ -745,9 +798,9 @@ else:
                         for _, row in phase_df.iterrows():
                             region_n = row["region"]
                             law_t = row["law_title"]
-                            sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
+                            sc0 = row["sub_cat_0"]
                             content = row["content"]
-                            tag_str = f"[{region_n}] " + (f"{sc0} ➔ {sc1}" if (sc0 or sc1) else "")
+                            tag_str = f"[{region_n}] " + (sc0 if sc0 else "通用场景")
                             timeline_card_html = f"""
                             <div class="timeline-item">
                                 <div class="timeline-node"></div>
