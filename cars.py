@@ -10,12 +10,15 @@ st.set_page_config(
     page_title="智能网联汽车与跨国数据合规检索平台 | Newsprint Edition",
     page_icon="📰", 
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# 初始化 Session State，用于控制术语界面的显示/隐藏
+# 初始化 Session State，用于控制术语界面的显示/隐藏与顶部导航状态
 if "show_terms_page" not in st.session_state:
     st.session_state.show_terms_page = False
+
+if "nav_choice" not in st.session_state:
+    st.session_state.nav_choice = "法律库"
 
 def toggle_terms_page():
     st.session_state.show_terms_page = not st.session_state.show_terms_page
@@ -87,7 +90,6 @@ NEWSPRINT_CSS = """
         border: 1px solid #111111;
         border-radius: 0px !important;
     }
-    /* 彻底隐藏折叠图标字体（如 arrow_right / arrow_down），让其不占位、不重叠 */
     div[data-testid="stExpander"] summary span[data-testid="stExpanderToggleIcon"] {
         font-size: 0px !important;
         color: transparent !important;
@@ -108,17 +110,13 @@ NEWSPRINT_CSS = """
         color: #F9F9F7 !important;
     }
 
-    /* 侧边栏新闻纸质感 */
+    /* 隐藏默认侧边栏 */
     [data-testid="stSidebar"] {
-        background-color: #E5E5E0 !important;
-        border-right: 2px solid #111111 !important;
-    }
-    [data-testid="stSidebar"] * {
-        font-family: 'Inter', sans-serif !important;
+        display: none !important;
     }
 
-    /* 侧边栏“专栏导航”跳转按钮独立配色：默认白底黑字，悬停黑底白字 */
-    [data-testid="stSidebar"] .stButton button {
+    /* 顶部导航栏按钮统一样式 */
+    .stButton button {
         background-color: #F9F9F7 !important;
         color: #111111 !important;
         border: 1px solid #111111 !important;
@@ -131,7 +129,7 @@ NEWSPRINT_CSS = """
         width: 100%;
         transition: background-color 100ms ease, color 100ms ease !important;
     }
-    [data-testid="stSidebar"] .stButton button:hover {
+    .stButton button:hover {
         background-color: #111111 !important;
         color: #F9F9F7 !important;
         border: 1px solid #111111 !important;
@@ -369,24 +367,44 @@ def init_database_from_excel():
 success_db = init_database_from_excel()
 
 
-# ==================== 4. 侧边栏及页面路由 ====================
-st.sidebar.markdown("### 📰 专栏导航")
-if st.sidebar.button("进入【术语解释总结】专题 ➔" if not st.session_state.show_terms_page else "🔙 返回主检索系统", on_click=toggle_terms_page):
-    pass
+# ==================== 4. 页面最顶端：术语解释按钮与导航栏集成 ====================
+top_col1, top_col2 = st.columns([1, 4])
+with top_col1:
+    if st.button("📖 术语解释总结" if not st.session_state.show_terms_page else "🔙 返回主检索系统", key="top_terms_btn"):
+        toggle_terms_page()
+        st.rerun()
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🧭 检索版块")
-nav_mode = st.sidebar.radio(
-    "选择功能模块", 
-    ["📑 体系化法律库", "🔎 穿透式法规检索", "⏱️ 出境全流程时间轴"],
-    disabled=st.session_state.show_terms_page 
-)
+st.markdown("---")
+
+# 顶部导航栏：从左到右依次为 首页 - 法律库 - 出境全流程时间轴 - 关于我们
+nav_cols = st.columns(4)
+with nav_cols[0]:
+    if st.button("🏠 首页", key="nav_home"):
+        st.session_state.nav_choice = "首页"
+        st.session_state.show_terms_page = False
+        st.rerun()
+with nav_cols[1]:
+    if st.button("📑 法律库", key="nav_law"):
+        st.session_state.nav_choice = "法律库"
+        st.session_state.show_terms_page = False
+        st.rerun()
+with nav_cols[2]:
+    if st.button("⏱️ 出境全流程时间轴", key="nav_timeline"):
+        st.session_state.nav_choice = "出境全流程时间轴"
+        st.session_state.show_terms_page = False
+        st.rerun()
+with nav_cols[3]:
+    if st.button("ℹ️ 关于我们", key="nav_about"):
+        st.session_state.nav_choice = "关于我们"
+        st.session_state.show_terms_page = False
+        st.rerun()
+
+st.markdown("---")
 
 
 # ==================== 5. 页面展示逻辑 ====================
 
 if st.session_state.show_terms_page:
-    st.button("🔙 返回主合规平台", on_click=toggle_terms_page)
     st.markdown("<h2 style='text-align: center; border-bottom: 3px solid #111;'>📖 术语解释总结全库专栏</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-family: Lora, serif; color: #666666;'>展示完整的汽车数据及出境合规术语释义，还原现代纸媒专栏的严谨审慎与清晰结构。</p>", unsafe_allow_html=True)
     st.markdown("---")
@@ -483,172 +501,203 @@ if st.session_state.show_terms_page:
 
 
 else:
-    # Newsprint 报头结构信息
-    st.markdown(
-        """
-        <div class="newsprint-masthead">
-            <span>VOL. I NO. 01</span>
-            <span>AUTOMOTIVE DATA COMPLIANCE REVIEW</span>
-            <span>GLOBAL EDITION</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    if st.session_state.nav_choice == "首页":
+        st.markdown(
+            """
+            <div class="newsprint-masthead">
+                <span>VOL. I NO. 01</span>
+                <span>AUTOMOTIVE DATA COMPLIANCE REVIEW</span>
+                <span>GLOBAL EDITION</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            """
+            <div class="sharp-card" style="border-top: 4px solid #111;">
+                <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>智能网联汽车跨国数据合规平台 - 首页</h1>
+                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
+                    欢迎来到首页。此处保持空白，后续可根据需要自由添加内容。
+                </p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
-    st.markdown(
-        """
-        <div class="sharp-card" style="border-top: 4px solid #111;">
-            <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>智能网联汽车跨国数据合规平台</h1>
-            <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
-                全面汇总 <b>中国、欧盟、美国</b> 三大核心司法辖区车外实景影像与关键汽车数据合规指引。<br>
-                秉持绝对清晰的网格架构与严谨审慎的编辑标准，为出境合规提供权威、可靠的决策支撑。
-            </p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+    elif st.session_state.nav_choice == "关于我们":
+        st.markdown(
+            """
+            <div class="newsprint-masthead">
+                <span>VOL. I NO. 01</span>
+                <span>AUTOMOTIVE DATA COMPLIANCE REVIEW</span>
+                <span>GLOBAL EDITION</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            """
+            <div class="sharp-card" style="border-top: 4px solid #111;">
+                <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>关于我们</h1>
+                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
+                    此处保持空白，后续可根据需要自由添加平台介绍及团队信息。
+                </p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
-    if not success_db:
-        st.error("主数据加载失败！请确保对应的 Excel 文件与本项目代码在同一目录下。")
     else:
-        conn = sqlite3.connect(DB_FILE)
+        # Newsprint 报头结构信息
+        st.markdown(
+            """
+            <div class="newsprint-masthead">
+                <span>VOL. I NO. 01</span>
+                <span>AUTOMOTIVE DATA COMPLIANCE REVIEW</span>
+                <span>GLOBAL EDITION</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        if nav_mode == "📑 体系化法律库":
-            selected_region = st.sidebar.selectbox("🌐 司法辖区", ["全部", "中国", "欧盟", "美国"])
+        st.markdown(
+            """
+            <div class="sharp-card" style="border-top: 4px solid #111;">
+                <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>智能网联汽车跨国数据合规平台</h1>
+                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
+                    全面汇总 <b>中国、欧盟、美国</b> 三大核心司法辖区车外实景影像与关键汽车数据合规指引。<br>
+                    秉持绝对清晰的网格架构与严谨审慎的编辑标准，为出境合规提供权威、可靠的决策支撑。
+                </p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
-            if selected_region == "全部":
-                categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws", conn)
-            else:
-                categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
+        if not success_db:
+            st.error("主数据加载失败！请确保对应的 Excel 文件与本项目代码在同一目录下。")
+        else:
+            conn = sqlite3.connect(DB_FILE)
 
-            categories = ["全部"] + categories_df["category"].tolist()
-            selected_category = st.sidebar.selectbox("📁 合规模块", categories)
+            if st.session_state.nav_choice == "法律库":
+                # 将原来的侧边栏筛选控件放在主界面上方
+                filter_col1, filter_col2 = st.columns(2)
+                with filter_col1:
+                    selected_region = st.selectbox("🌐 司法辖区", ["全部", "中国", "欧盟", "美国"])
+                with filter_col2:
+                    if selected_region == "全部":
+                        categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws", conn)
+                    else:
+                        categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
+                    categories = ["全部"] + categories_df["category"].tolist()
+                    selected_category = st.selectbox("📁 合规模块", categories)
 
-            query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
-            conditions = []
-            params = []
+                st.markdown("---")
 
-            if selected_region != "全部":
-                conditions.append("region = ?")
-                params.append(selected_region)
-            if selected_category != "全部":
-                conditions.append("category = ?")
-                params.append(selected_category)
+                # 穿透式法规检索搜索框直接放到这一行下面
+                keyword = st.text_input("🔍 穿透式法规检索关键词", placeholder="如：数据出境、GDPR...")
 
-            if conditions:
-                query += " WHERE " + " AND ".join(conditions)
+                query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
+                conditions = []
+                params = []
 
-            query += " ORDER BY region, category, sort_order"
-            module_df = pd.read_sql(query, conn, params=tuple(params))
+                if selected_region != "全部":
+                    conditions.append("region = ?")
+                    params.append(selected_region)
+                if selected_category != "全部":
+                    conditions.append("category = ?")
+                    params.append(selected_category)
 
-            st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
-            st.write("")
+                if keyword:
+                    wildcard = f"%{keyword}%"
+                    conditions.append("(content LIKE ? OR law_title LIKE ? OR category LIKE ? OR sub_cat_0 LIKE ? OR sub_cat_1 LIKE ?)")
+                    params.extend([wildcard]*5)
 
-            grouped = module_df.groupby("law_title")
+                if conditions:
+                    query += " WHERE " + " AND ".join(conditions)
 
-            for law_title, group in grouped:
-                region_name = group.iloc[0]["region"]
-                cat_name = group.iloc[0]["category"]
-                expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
+                query += " ORDER BY region, category, sort_order"
+                module_df = pd.read_sql(query, conn, params=tuple(params))
 
-                with st.expander(expander_label, expanded=False):
-                    st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
-                    st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
-
-                    for idx, row in group.reset_index().iterrows():
-                        sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
-                        if sc0 or sc1:
-                            tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
-                            st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
-
-                        st.markdown(f'<div class="law-content">{row["content"]}</div>', unsafe_allow_html=True)
-
-        elif nav_mode == "🔎 穿透式法规检索":
-            keyword = st.sidebar.text_input("🔍 输入检索关键词", placeholder="如：数据出境、GDPR...")
-            st.sidebar.caption("支持模糊搜索法规条款、标签或分类维度。")
-
-            if keyword:
-                wildcard = f"%{keyword}%"
-                search_query = """
-                    SELECT region, category, law_title, sub_cat_0, sub_cat_1, content 
-                    FROM compliance_laws 
-                    WHERE content LIKE ? OR law_title LIKE ? OR category LIKE ? OR sub_cat_0 LIKE ? OR sub_cat_1 LIKE ?
-                    ORDER BY region, category, sort_order
-                """
-                results_df = pd.read_sql(search_query, conn, params=(wildcard,)*5)
-
-                st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(results_df)}** 条", unsafe_allow_html=True)
+                if keyword:
+                    st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
                 st.write("")
 
-                grouped_search = results_df.groupby("law_title")
-                for law_title, group in grouped_search:
-                    region_name, cat_name = group.iloc[0]["region"], group.iloc[0]["category"]
+                grouped = module_df.groupby("law_title")
 
-                    with st.expander(f"📌 【{region_name}】 {law_title}"):
+                for law_title, group in grouped:
+                    region_name = group.iloc[0]["region"]
+                    cat_name = group.iloc[0]["category"]
+                    expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
+
+                    with st.expander(expander_label, expanded=False):
                         st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
+                        st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
+
                         for idx, row in group.reset_index().iterrows():
                             sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
                             if sc0 or sc1:
                                 tag_content = f"{sc0}" + (f" ➔ {sc1}" if sc1 else "")
                                 st.markdown(f'<span class="law-tag">💡 {tag_content}</span>', unsafe_allow_html=True)
 
-                            highlighted_content = row["content"].replace(keyword, f"<span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:0 2px;'>{keyword}</span>")
-                            st.markdown(f'<div class="law-content">{highlighted_content}</div>', unsafe_allow_html=True)
-            else:
-                st.info("👈 请在左侧侧边栏输入关键词以获取检索结果。")
+                            content_text = row["content"]
+                            if keyword:
+                                content_text = content_text.replace(keyword, f"<span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:0 2px;'>{keyword}</span>")
+                            st.markdown(f'<div class="law-content">{content_text}</div>', unsafe_allow_html=True)
 
-        elif nav_mode == "⏱️ 出境全流程时间轴":
-            st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
-            st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
-            st.write("")
+            elif st.session_state.nav_choice == "出境全流程时间轴":
+                st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
+                st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
+                st.write("")
 
-            all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
+                all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
 
-            timeline_phases = [
-                {"title": "Phase 1：出境前准备与评估 (Data Mapping & Assessment)", 
-                 "desc": "完成数据资产梳理、分类分级，执行数据出境安全评估、标准合同签署或个人信息保护认证。"},
-                {"title": "Phase 2：出境中实施与传输 (Secure Transmission & Protection)", 
-                 "desc": "在符合车内处理、默认不收集、脱敏等原则下，落实跨境传输链路安全及技术保护措施。"},
-                {"title": "Phase 3：出境后合规监督 (Post-transfer Monitoring & Audit)", 
-                 "desc": "建立持续合规审计机制、安全事件应急响应与境外接收方权益保障监督。"}
-            ]
+                timeline_phases = [
+                    {"title": "Phase 1：出境前准备与评估 (Data Mapping & Assessment)", 
+                     "desc": "完成数据资产梳理、分类分级，执行数据出境安全评估、标准合同签署或个人信息保护认证。"},
+                    {"title": "Phase 2：出境中实施与传输 (Secure Transmission & Protection)", 
+                     "desc": "在符合车内处理、默认不收集、脱敏等原则下，落实跨境传输链路安全及技术保护措施。"},
+                    {"title": "Phase 3：出境后合规监督 (Post-transfer Monitoring & Audit)", 
+                     "desc": "建立持续合规审计机制、安全事件应急响应与境外接收方权益保障监督。"}
+                ]
 
-            phase_tabs = st.tabs([f"📌 {p['title'].split(' ')[0]} {p['title'].split(' ')[1]}" for p in timeline_phases])
+                phase_tabs = st.tabs([f"📌 {p['title'].split(' ')[0]} {p['title'].split(' ')[1]}" for p in timeline_phases])
 
-            for i, p_info in enumerate(timeline_phases):
-                with phase_tabs[i]:
-                    st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{p_info['title']}</h4>", unsafe_allow_html=True)
-                    st.info(p_info['desc'])
+                for i, p_info in enumerate(timeline_phases):
+                    with phase_tabs[i]:
+                        st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{p_info['title']}</h4>", unsafe_allow_html=True)
+                        st.info(p_info['desc'])
 
-                    if i == 0:
-                        phase_df = all_laws_df[all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) | all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)]
-                    elif i == 1:
-                        phase_df = all_laws_df[all_laws_df["content"].str.contains("传输|出境|向境外|接收|加密|安全保护", na=False)]
-                        if phase_df.empty: phase_df = all_laws_df.iloc[3:7]
-                    else:
-                        phase_df = all_laws_df[all_laws_df["content"].str.contains("监督|审计|评估|报告|应急|处置", na=False)]
-                        if phase_df.empty: phase_df = all_laws_df.iloc[7:]
+                        if i == 0:
+                            phase_df = all_laws_df[all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) | all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)]
+                        elif i == 1:
+                            phase_df = all_laws_df[all_laws_df["content"].str.contains("传输|出境|向境外|接收|加密|安全保护", na=False)]
+                            if phase_df.empty: phase_df = all_laws_df.iloc[3:7]
+                        else:
+                            phase_df = all_laws_df[all_laws_df["content"].str.contains("监督|审计|评估|报告|应急|处置", na=False)]
+                            if phase_df.empty: phase_df = all_laws_df.iloc[7:]
 
-                    st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
-                    for _, row in phase_df.iterrows():
-                        region_n = row["region"]
-                        law_t = row["law_title"]
-                        sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
-                        content = row["content"]
+                        st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
+                        for _, row in phase_df.iterrows():
+                            region_n = row["region"]
+                            law_t = row["law_title"]
+                            sc0, sc1 = row["sub_cat_0"], row["sub_cat_1"]
+                            content = row["content"]
 
-                        tag_str = f"[{region_n}] " + (f"{sc0} ➔ {sc1}" if (sc0 or sc1) else "")
+                            tag_str = f"[{region_n}] " + (f"{sc0} ➔ {sc1}" if (sc0 or sc1) else "")
 
-                        timeline_card_html = f"""
-                        <div class="timeline-item">
-                            <div class="timeline-node"></div>
-                            <div class="timeline-card hard-shadow-hover">
-                                <span class="law-tag">{tag_str}</span>
-                                <h4 style="margin-top: 5px; color: #111111; font-family: Playfair Display, serif; border-bottom: none;">{law_t}</h4>
-                                <div class="law-content" style="margin-bottom: 0;">{content}</div>
+                            timeline_card_html = f"""
+                            <div class="timeline-item">
+                                <div class="timeline-node"></div>
+                                <div class="timeline-card hard-shadow-hover">
+                                    <span class="law-tag">{tag_str}</span>
+                                    <h4 style="margin-top: 5px; color: #111111; font-family: Playfair Display, serif; border-bottom: none;">{law_t}</h4>
+                                    <div class="law-content" style="margin-bottom: 0;">{content}</div>
+                                </div>
                             </div>
-                        </div>
-                        """
-                        st.markdown(timeline_card_html, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
+                            """
+                            st.markdown(timeline_card_html, unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
 
-        conn.close()
+            conn.close()
