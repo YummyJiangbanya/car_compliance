@@ -13,15 +13,12 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 初始化 Session State，用于控制术语界面的显示/隐藏与顶部导航状态
+# 初始化 Session State：默认进入“首页”
+if "nav_choice" not in st.session_state:
+    st.session_state.nav_choice = "首页"
+
 if "show_terms_page" not in st.session_state:
     st.session_state.show_terms_page = False
-
-if "nav_choice" not in st.session_state:
-    st.session_state.nav_choice = "法律库"
-
-def toggle_terms_page():
-    st.session_state.show_terms_page = not st.session_state.show_terms_page
 
 # ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格重构) ====================
 NEWSPRINT_CSS = """
@@ -115,7 +112,7 @@ NEWSPRINT_CSS = """
         display: none !important;
     }
 
-    /* 四个核心导航链接样式：无方框、紧凑挨着、下方带黑色细线、悬浮变色 */
+    /* 顶端五个核心导航链接样式：无方框、下方带黑色细线、等间距平铺、悬浮变色 */
     .nav-link-btn button {
         background-color: transparent !important;
         color: #111111 !important;
@@ -127,8 +124,8 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         letter-spacing: 0.05em;
         box-shadow: none !important;
-        width: auto !important;
-        padding: 6px 16px !important;
+        width: 100% !important;
+        padding: 8px 0px !important;
         margin: 0px !important;
         text-align: center;
         transition: all 100ms ease !important;
@@ -140,25 +137,26 @@ NEWSPRINT_CSS = """
         box-shadow: none !important;
     }
 
-    /* 术语解释跳转按钮样式（左上角独立） */
-    .top-term-btn button {
+    /* 嵌入大方框右下角的术语解释按钮样式 */
+    .inline-term-btn button {
         background-color: #F9F9F7 !important;
         color: #111111 !important;
         border: 1px solid #111111 !important;
         border-radius: 0px !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
+        font-size: 0.85rem !important;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         box-shadow: none !important;
-        width: 100%;
+        padding: 6px 14px !important;
         transition: background-color 100ms ease, color 100ms ease !important;
     }
-    .top-term-btn button:hover {
+    .inline-term-btn button:hover {
         background-color: #111111 !important;
         color: #F9F9F7 !important;
         border: 1px solid #111111 !important;
-        box-shadow: 3px 3px 0px 0px #111111 !important;
+        box-shadow: 2px 2px 0px 0px #111111 !important;
     }
 
     /* 报纸风格标签 */
@@ -392,18 +390,10 @@ def init_database_from_excel():
 success_db = init_database_from_excel()
 
 
-# ==================== 4. 页面最顶端：左上角术语按钮与顶端无边框黑色细线导航栏 ====================
-top_col1, top_col2 = st.columns([1, 4])
-with top_col1:
-    st.markdown('<div class="top-term-btn">', unsafe_allow_html=True)
-    if st.button("📖 术语解释总结" if not st.session_state.show_terms_page else "🔙 返回主检索系统", key="top_terms_btn"):
-        toggle_terms_page()
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+# ==================== 4. 网页最顶端：五个核心导航栏（等间距、中间黑线隔开） ====================
+top_cols = st.columns([1, 0.05, 1, 0.05, 1, 0.05, 1, 0.05, 1])
 
-# 顶部导航栏：紧凑挨在一起、单行平铺、底部带有黑色细线
-nav_container_cols = st.columns([0.1, 0.1, 0.15, 0.1, 0.55])
-with nav_container_cols[0]:
+with top_cols[0]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("首页", key="nav_home"):
         st.session_state.nav_choice = "首页"
@@ -411,7 +401,10 @@ with nav_container_cols[0]:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with nav_container_cols[1]:
+with top_cols[1]:
+    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+
+with top_cols[2]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("法律库", key="nav_law"):
         st.session_state.nav_choice = "法律库"
@@ -419,7 +412,10 @@ with nav_container_cols[1]:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with nav_container_cols[2]:
+with top_cols[3]:
+    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+
+with top_cols[4]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("出境全流程时间轴", key="nav_timeline"):
         st.session_state.nav_choice = "出境全流程时间轴"
@@ -427,13 +423,29 @@ with nav_container_cols[2]:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with nav_container_cols[3]:
+with top_cols[5]:
+    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+
+with top_cols[6]:
+    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
+    if st.button("案例库", key="nav_cases"):
+        st.session_state.nav_choice = "案例库"
+        st.session_state.show_terms_page = False
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with top_cols[7]:
+    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+
+with top_cols[8]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("关于我们", key="nav_about"):
         st.session_state.nav_choice = "关于我们"
         st.session_state.show_terms_page = False
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+
+st.write("") # 间距微调
 
 
 # ==================== 5. 页面展示逻辑 ====================
@@ -580,6 +592,29 @@ else:
             unsafe_allow_html=True
         )
 
+    elif st.session_state.nav_choice == "案例库":
+        st.markdown(
+            """
+            <div class="newsprint-masthead">
+                <span>VOL. I NO. 01</span>
+                <span>AUTOMOTIVE DATA COMPLIANCE REVIEW</span>
+                <span>GLOBAL EDITION</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            """
+            <div class="sharp-card" style="border-top: 4px solid #111;">
+                <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>案例库</h1>
+                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
+                    此处保持空白，后续可根据需要自由添加合规案例内容。
+                </p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+
     else:
         # Newsprint 报头结构信息
         st.markdown(
@@ -593,9 +628,10 @@ else:
             unsafe_allow_html=True
         )
 
+        # 平台主标题大方框，并将术语解释按钮嵌入在方框内部的右下角
         st.markdown(
             """
-            <div class="sharp-card" style="border-top: 4px solid #111;">
+            <div class="sharp-card" style="border-top: 4px solid #111; position: relative;">
                 <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>智能网联汽车跨国数据合规平台</h1>
                 <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
                     全面汇总 <b>中国、欧盟、美国</b> 三大核心司法辖区车外实景影像与关键汽车数据合规指引。<br>
@@ -605,6 +641,15 @@ else:
             """, 
             unsafe_allow_html=True
         )
+
+        # 在主标题大方框的下方右侧嵌入“术语解释总结”按钮
+        col_space, col_btn = st.columns([3, 1])
+        with col_btn:
+            st.markdown('<div class="inline-term-btn" style="text-align: right;">', unsafe_allow_html=True)
+            if st.button("📖 术语解释总结", key="inline_terms_btn"):
+                st.session_state.show_terms_page = True
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
         if not success_db:
             st.error("主数据加载失败！请确保对应的 Excel 文件与本项目代码在同一目录下。")
