@@ -20,6 +20,9 @@ if "nav_choice" not in st.session_state:
 if "show_terms_page" not in st.session_state:
     st.session_state.show_terms_page = False
 
+if "selected_case" not in st.session_state:
+    st.session_state.selected_case = None
+
 # ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格重构) ====================
 NEWSPRINT_CSS = """
 <style>
@@ -383,7 +386,7 @@ def init_database_from_excel():
                     
                     cursor.execute(
                         """SELECT COUNT(1) FROM compliance_laws 
-                           WHERE region=? AND category=? AND law_title=? AND sub_cat_0=? AND sub_cat_1=? AND content=?""",
+                            WHERE region=? AND category=? AND law_title=? AND sub_cat_0=? AND sub_cat_1=? AND content=?""",
                         (region, category, law_title, sub_c0, sub_c1, content_str)
                     )
                     exists = cursor.fetchone()[0]
@@ -429,12 +432,12 @@ for idx, (label, choice_key) in enumerate(nav_items):
     with top_cols[idx]:
         is_active = (st.session_state.nav_choice == choice_key)
         btn_type = "primary" if is_active else "secondary"
-        # 包装成带样式容器
         active_style_class = "nav-tab-active" if is_active else ""
         st.markdown(f'<div class="nav-tab-item {active_style_class}" style="border:none; margin-bottom:15px;">', unsafe_allow_html=True)
         if st.button(label, key=f"nav_btn_{idx}", use_container_width=True):
             st.session_state.nav_choice = choice_key
             st.session_state.show_terms_page = False
+            st.session_state.selected_case = None
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -594,17 +597,88 @@ else:
             """,
             unsafe_allow_html=True
         )
-        st.markdown(
-            """
-            <div class="sharp-card" style="border-top: 4px solid #111;">
-                <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>案例库</h1>
-                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
-                    此处保持空白，后续可根据需要自由添加合规案例内容。
-                </p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+        
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        case_excel_path = os.path.join(current_dir, "案例库.xlsx")
+
+        if os.path.exists(case_excel_path):
+            try:
+                df_case = pd.read_excel(case_excel_path, header=None)
+                
+                # 解析案例库表格：第0行是案例名称，第0列是六个部分
+                cases_data = []
+                for col_idx in range(1, len(df_case.columns)):
+                    case_name = str(df_case.iloc[0, col_idx]).strip()
+                    if not case_name or case_name == "nan":
+                        continue
+                    sections = {}
+                    for row_idx in range(1, len(df_case)):
+                        sec_title = str(df_case.iloc[row_idx, 0]).strip()
+                        sec_content = str(df_case.iloc[row_idx, col_idx]).strip()
+                        if sec_title and sec_title != "nan":
+                            sections[sec_title] = sec_content if sec_content != "nan" else "（暂无内容）"
+                    cases_data.append({
+                        "case_name": case_name,
+                        "sections": sections
+                    })
+
+                if st.session_state.selected_case is None:
+                    st.markdown(
+                        """
+                        <div class="sharp-card" style="border-top: 4px solid #111;">
+                            <h1 style='margin-top:0; border-bottom:none; font-size: 2.4rem;'>合规典型案例库</h1>
+                            <p style='font-family: Lora, serif; font-size: 1rem; line-height: 1.5; color: #333333; margin-bottom: 0;'>
+                                汇总全球数据合规与跨境执法典型案例。点击下方案例名称，即可穿透式查看包含<b>案件基本信息、基本情况、法律分析、处罚结果、合规启示与相关资料</b>在内的六大核心板块全景。
+                            </p>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+                    st.write("")
+
+                    for i, c_item in enumerate(cases_data):
+                        c_name = c_item["case_name"]
+                        st.markdown(
+                            f"""
+                            <div class="sharp-card hard-shadow-hover" style="border-left: 6px solid #111; padding: 20px 24px; margin-bottom: 16px;">
+                                <h3 style="margin-top: 0; margin-bottom: 10px; font-family: Playfair Display, serif; font-size: 1.5rem; border-bottom: none;">
+                                    ⚖️ {c_name}
+                                </h3>
+                                <p style="font-family: Lora, serif; color: #666; margin-bottom: 15px; font-size: 0.95rem;">
+                                    包含完整六维合规剖析：案件背景、事实梳理、GDPR/国内法核心条款穿透、监管逻辑、处罚裁决与出海启示。
+                                </p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        if st.button(f"查看完整案例报告 ➔", key=f"case_btn_{i}", use_container_width=True):
+                            st.session_state.selected_case = c_name
+                            st.rerun()
+                else:
+                    # 显示具体某个案例的详细六部分内容
+                    active_case = next((c for c in cases_data if c["case_name"] == st.session_state.selected_case), None)
+                    
+                    if st.button("⬅ 返回案例库列表", key="back_to_cases"):
+                        st.session_state.selected_case = None
+                        st.rerun()
+
+                    if active_case:
+                        st.markdown(f"<h1 style='margin-top: 10px; font-size: 2.5rem;'>{active_case['case_name']}</h1>", unsafe_allow_html=True)
+                        
+                        sections_order = ["案件基本信息", "案件基本情况", "法律分析", "处罚结果", "合规启示", "相关资料"]
+                        
+                        for sec_title in sections_order:
+                            if sec_title in active_case["sections"]:
+                                content_val = active_case["sections"][sec_title]
+                                st.markdown(f"<h3 style='font-family: Playfair Display, serif; margin-top: 25px; border-bottom: 1px solid #111;'>📌 {sec_title}</h3>", unsafe_allow_html=True)
+                                st.markdown(f'<div class="law-content">{content_val}</div>', unsafe_allow_html=True)
+                    else:
+                        st.warning("未找到该案例详情。")
+
+            except Exception as e:
+                st.error(f"加载案例库表格异常: {e}")
+        else:
+            st.warning("未检测到 `案例库.xlsx` 文件，请确认已上传至同一目录。")
 
     else:
         # Newsprint 报头结构信息
