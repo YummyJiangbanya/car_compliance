@@ -293,6 +293,14 @@ def get_clean_cell_text(cell):
     
     return full_text.strip()
 
+def clean_scenario_cell(val):
+    if pd.isna(val) or val is None:
+        return ""
+    s = str(val).strip()
+    if s.lower() in ["nan", "none", "null", "unnamed: 0", "unnamed: 1", "unnamed: 2"]:
+        return ""
+    return s
+
 @st.cache_data
 def init_database_from_excel():
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -315,10 +323,8 @@ def init_database_from_excel():
             if fname.endswith(".xlsx") and "合规平台" in fname:
                 excel_path = os.path.join(current_dir, fname)
                 break
-
     if not excel_path or not os.path.exists(excel_path):
         return False
-
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -334,30 +340,24 @@ def init_database_from_excel():
         )
     """)
     cursor.execute("DELETE FROM compliance_laws")
-
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
     df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
-
     categories_row = df_raw.iloc[0]
     titles_row = df_raw.iloc[1]
     col0_raw = df_raw.iloc[:, 0] if len(df_raw.columns) > 0 else pd.Series([""] * len(df_raw))
     col1_raw = df_raw.iloc[:, 1] if len(df_raw.columns) > 1 else pd.Series([""] * len(df_raw))
     col2_raw = df_raw.iloc[:, 2] if len(df_raw.columns) > 2 else pd.Series([""] * len(df_raw))
-
     laws_dict = {}
     laws_order = []
     all_law_columns = []
-
     # 遍历第 3 列及以后的所有列（法规列）
     for col_idx in range(3, len(df_raw.columns)):
         cat_raw = str(categories_row.iloc[col_idx]).strip()
         law_title = str(titles_row.iloc[col_idx]).strip()
-
         if not law_title or law_title == "nan":
             continue
-
         # 第一行精准拆分 司法辖区 与 合规模块
         if "-" in cat_raw:
             parts = cat_raw.split("-", 1)
@@ -384,26 +384,21 @@ def init_database_from_excel():
             else:
                 region = "中国"
                 category = cat_raw if cat_raw and cat_raw != "nan" else "通用模块"
-
         all_law_columns.append((region, category, law_title))
-
         # 遍历全列的所有数据单元格（第 2 行开始）
         for row_idx in range(2, len(df_raw)):
             cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
             content_str = get_clean_cell_text(cell_obj)
-
             if content_str and content_str != "nan":
-                # 拼接第 0、1、2 列作为适用场景
-                s0 = str(col0_raw.iloc[row_idx]).strip()
-                s1 = str(col1_raw.iloc[row_idx]).strip()
-                s2 = str(col2_raw.iloc[row_idx]).strip() if len(df_raw.columns) > 2 else ""
-
-                sc_parts = [x for x in [s0, s1, s2] if x and x != "nan"]
-                scenario_text = " ➔ ".join(sc_parts) if sc_parts else "通用指引"
-
+                # 精准提取第 0、1、2 列适用场景：自动过滤空列并用 ➔ 拼接
+                s0 = clean_scenario_cell(col0_raw.iloc[row_idx])
+                s1 = clean_scenario_cell(col1_raw.iloc[row_idx])
+                s2 = clean_scenario_cell(col2_raw.iloc[row_idx]) if len(df_raw.columns) > 2 else ""
+                sc_parts = [x for x in [s0, s1, s2] if x]
+                scenario_text = " ➔ ".join(sc_parts)
+                
                 sort_val = extract_sort_key(content_str)
                 key = (region, category, law_title, content_str)
-
                 # 识别重复法条：若同一个法规下的法条内容完全一样，合并条目并累计不同的适用场景
                 if key not in laws_dict:
                     laws_dict[key] = {
@@ -415,10 +410,8 @@ def init_database_from_excel():
                         "scenarios": []
                     }
                     laws_order.append(key)
-
-                if scenario_text not in laws_dict[key]["scenarios"]:
+                if scenario_text and scenario_text not in laws_dict[key]["scenarios"]:
                     laws_dict[key]["scenarios"].append(scenario_text)
-
     # 将合并后的法条数据写入 SQLite 数据库
     processed_laws = set()
     for key in laws_order:
@@ -429,15 +422,13 @@ def init_database_from_excel():
             (item["region"], item["category"], item["law_title"], combined_scenarios, "", item["content"], item["sort_order"])
         )
         processed_laws.add((item["region"], item["category"], item["law_title"]))
-
     # 保留占位（应对暂无可检索条文的法规列）
     for (r, c, lt) in set(all_law_columns):
         if (r, c, lt) not in processed_laws:
             cursor.execute(
                 "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (r, c, lt, "暂无分类", "暂无指引", "（该法规条文正在整理补充中，敬请期待...）", 999)
+                (r, c, lt, "", "", "（该法规条文正在整理补充中，敬请期待...）", 999)
             )
-
     conn.commit()
     conn.close()
     return True
@@ -452,7 +443,6 @@ nav_items = [
     ("案例库", "案例库"),
     ("关于我们", "关于我们")
 ]
-
 top_cols = st.columns(5)
 for idx, (label, choice_key) in enumerate(nav_items):
     with top_cols[idx]:
@@ -724,7 +714,6 @@ else:
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("📁 合规模块", categories)
-
                 keyword = st.text_input("🔍 穿透式法规检索关键词", placeholder="如：数据出境、GDPR...")
                 
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
@@ -743,14 +732,11 @@ else:
                 if conditions:
                     query += " WHERE " + " AND ".join(conditions)
                 query += " ORDER BY region, category, sort_order"
-
                 module_df = pd.read_sql(query, conn, params=tuple(params))
-
                 if keyword:
                     st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
                 else:
                     st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
-
                 grouped = module_df.groupby(["region", "category", "law_title"], sort=False)
                 for (region_name, cat_name, law_title), group in grouped:
                     expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
@@ -768,7 +754,6 @@ else:
                             if keyword:
                                 content_text = content_text.replace(keyword, f"<span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:0 2px;'>{keyword}</span>")
                             st.markdown(f'<div class="law-content">{content_text}</div>', unsafe_allow_html=True)
-
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
                 st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
@@ -800,7 +785,7 @@ else:
                             law_t = row["law_title"]
                             sc0 = row["sub_cat_0"]
                             content = row["content"]
-                            tag_str = f"[{region_n}] " + (sc0 if sc0 else "通用场景")
+                            tag_str = f"[{region_n}] {sc0}" if sc0 else f"[{region_n}]"
                             timeline_card_html = f"""
                             <div class="timeline-item">
                                 <div class="timeline-node"></div>
