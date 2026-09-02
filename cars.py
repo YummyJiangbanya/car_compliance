@@ -112,12 +112,11 @@ NEWSPRINT_CSS = """
         display: none !important;
     }
 
-    /* 顶端五个核心导航链接样式：无方框、下方带黑色细线、等间距平铺、悬浮变色 */
+    /* 顶端五个核心导航链接样式：无背景填充、黑色边框围成方格、等间距平铺、悬浮变色 */
     .nav-link-btn button {
         background-color: transparent !important;
         color: #111111 !important;
-        border: none !important;
-        border-bottom: 2px solid #111111 !important;
+        border: 1px solid #111111 !important;
         border-radius: 0px !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
@@ -133,7 +132,7 @@ NEWSPRINT_CSS = """
     .nav-link-btn button:hover {
         background-color: #111111 !important;
         color: #F9F9F7 !important;
-        border-bottom: 2px solid #111111 !important;
+        border: 1px solid #111111 !important;
         box-shadow: none !important;
     }
 
@@ -390,7 +389,7 @@ def init_database_from_excel():
 success_db = init_database_from_excel()
 
 
-# ==================== 4. 网页最顶端：五个核心导航栏（等间距、中间黑线隔开） ====================
+# ==================== 4. 网页最顶端：五个核心导航栏（等间距、中间黑线严格与文字底部对齐） ====================
 top_cols = st.columns([1, 0.05, 1, 0.05, 1, 0.05, 1, 0.05, 1])
 
 with top_cols[0]:
@@ -402,7 +401,7 @@ with top_cols[0]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with top_cols[1]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
 
 with top_cols[2]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
@@ -413,7 +412,7 @@ with top_cols[2]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with top_cols[3]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
 
 with top_cols[4]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
@@ -424,7 +423,7 @@ with top_cols[4]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with top_cols[5]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
 
 with top_cols[6]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
@@ -435,7 +434,7 @@ with top_cols[6]:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with top_cols[7]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 35px; margin: 0 auto;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
 
 with top_cols[8]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
