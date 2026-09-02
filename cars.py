@@ -112,31 +112,48 @@ NEWSPRINT_CSS = """
         display: none !important;
     }
 
-    /* 顶端五个核心导航链接样式：无背景填充、黑色边框围成方格、等间距平铺、悬浮变色 */
-    .nav-link-btn button {
+    /* 顶端五个核心导航链接样式：仿 Enforcement Tracker 风格的标签卡选项卡排布 */
+    .nav-tabs-container {
+        display: flex;
+        border: 1px solid #111111;
+        background-color: #F9F9F7;
+        margin-bottom: 25px;
+    }
+    .nav-tab-item {
+        flex: 1;
+        text-align: center;
+        border-right: 1px solid #111111;
+    }
+    .nav-tab-item:last-child {
+        border-right: none;
+    }
+    .nav-tab-item button {
         background-color: transparent !important;
         color: #111111 !important;
-        border: 1px solid #111111 !important;
+        border: none !important;
         border-radius: 0px !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
+        font-size: 0.9rem !important;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         box-shadow: none !important;
         width: 100% !important;
-        padding: 8px 0px !important;
+        padding: 12px 0px !important;
         margin: 0px !important;
         text-align: center;
         transition: all 100ms ease !important;
     }
-    .nav-link-btn button:hover {
+    .nav-tab-item button:hover {
         background-color: #111111 !important;
         color: #F9F9F7 !important;
-        border: 1px solid #111111 !important;
-        box-shadow: none !important;
+    }
+    .nav-tab-active button {
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
     }
 
-    /* 嵌入大方框右下角的术语解释按钮样式 */
+    /* 主标题旁的“术语解释总结”按钮样式 */
     .inline-term-btn button {
         background-color: #F9F9F7 !important;
         color: #111111 !important;
@@ -148,8 +165,9 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         letter-spacing: 0.05em;
         box-shadow: none !important;
-        padding: 6px 14px !important;
+        padding: 8px 16px !important;
         transition: background-color 100ms ease, color 100ms ease !important;
+        white-space: nowrap;
     }
     .inline-term-btn button:hover {
         background-color: #111111 !important;
@@ -389,62 +407,36 @@ def init_database_from_excel():
 success_db = init_database_from_excel()
 
 
-# ==================== 4. 网页最顶端：五个核心导航栏（等间距、中间黑线严格与文字底部对齐） ====================
-top_cols = st.columns([1, 0.05, 1, 0.05, 1, 0.05, 1, 0.05, 1])
+# ==================== 4. 网页最顶端：仿 Enforcement Tracker 风格的 5 个连续卡片选项卡 ====================
+nav_items = [
+    ("首页", "首页"),
+    ("法律库", "法律库"),
+    ("出境全流程时间轴", "出境全流程时间轴"),
+    ("案例库", "案例库"),
+    ("关于我们", "关于我们")
+]
 
-with top_cols[0]:
-    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
-    if st.button("首页", key="nav_home"):
-        st.session_state.nav_choice = "首页"
-        st.session_state.show_terms_page = False
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+tabs_html_parts = ['<div class="nav-tabs-container">']
+for label, choice_key in nav_items:
+    active_class = " nav-tab-active" if st.session_state.nav_choice == choice_key else ""
+    tabs_html_parts.append(f'<div class="nav-tab-item{active_class}">')
+    tabs_html_parts.append('</div>')
+st.markdown("".join(tabs_html_parts), unsafe_allow_html=True)
 
-with top_cols[1]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
-
-with top_cols[2]:
-    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
-    if st.button("法律库", key="nav_law"):
-        st.session_state.nav_choice = "法律库"
-        st.session_state.show_terms_page = False
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with top_cols[3]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
-
-with top_cols[4]:
-    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
-    if st.button("出境全流程时间轴", key="nav_timeline"):
-        st.session_state.nav_choice = "出境全流程时间轴"
-        st.session_state.show_terms_page = False
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with top_cols[5]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
-
-with top_cols[6]:
-    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
-    if st.button("案例库", key="nav_cases"):
-        st.session_state.nav_choice = "案例库"
-        st.session_state.show_terms_page = False
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with top_cols[7]:
-    st.markdown("<div style='border-left: 2px solid #111111; height: 38px; margin: 0 auto; position: relative; top: 2px;'></div>", unsafe_allow_html=True)
-
-with top_cols[8]:
-    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
-    if st.button("关于我们", key="nav_about"):
-        st.session_state.nav_choice = "关于我们"
-        st.session_state.show_terms_page = False
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-st.write("") # 间距微调
+# 使用 Streamlit 列精准映射 5 个卡片选项卡点击交互
+top_cols = st.columns(5)
+for idx, (label, choice_key) in enumerate(nav_items):
+    with top_cols[idx]:
+        is_active = (st.session_state.nav_choice == choice_key)
+        btn_type = "primary" if is_active else "secondary"
+        # 包装成带样式容器
+        active_style_class = "nav-tab-active" if is_active else ""
+        st.markdown(f'<div class="nav-tab-item {active_style_class}" style="border:none; margin-bottom:15px;">', unsafe_allow_html=True)
+        if st.button(label, key=f"nav_btn_{idx}", use_container_width=True):
+            st.session_state.nav_choice = choice_key
+            st.session_state.show_terms_page = False
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==================== 5. 页面展示逻辑 ====================
@@ -627,28 +619,36 @@ else:
             unsafe_allow_html=True
         )
 
-        # 平台主标题大方框，并将术语解释按钮嵌入在方框内部的右下角
-        st.markdown(
-            """
-            <div class="sharp-card" style="border-top: 4px solid #111; position: relative;">
-                <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>智能网联汽车跨国数据合规平台</h1>
-                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
-                    全面汇总 <b>中国、欧盟、美国</b> 三大核心司法辖区车外实景影像与关键汽车数据合规指引。<br>
-                    秉持绝对清晰的网格架构与严谨审慎的编辑标准，为出境合规提供权威、可靠的决策支撑。
-                </p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-
-        # 在主标题大方框的下方右侧嵌入“术语解释总结”按钮
-        col_space, col_btn = st.columns([3, 1])
-        with col_btn:
-            st.markdown('<div class="inline-term-btn" style="text-align: right;">', unsafe_allow_html=True)
-            if st.button("📖 术语解释总结", key="inline_terms_btn"):
+        # 平台主标题大方框，并将“术语解释总结”按钮与其放在同一行/旁边
+        title_col, btn_col = st.columns([4, 1])
+        with title_col:
+            st.markdown(
+                """
+                <div class="sharp-card" style="border-top: 4px solid #111; margin-bottom: 0; height: 100%;">
+                    <h1 style='margin-top:0; border-bottom:none; font-size: 2.4rem;'>智能网联汽车跨国数据合规平台</h1>
+                    <p style='font-family: Lora, serif; font-size: 1rem; line-height: 1.5; color: #333333; margin-bottom: 0;'>
+                        全面汇总 <b>中国、欧盟、美国</b> 三大核心司法辖区车外实景影像与关键汽车数据合规指引。<br>
+                        秉持绝对清晰的网格架构与严谨审慎的编辑标准，为出境合规提供权威决策支撑。
+                    </p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+        with btn_col:
+            st.markdown(
+                """
+                <div class="sharp-card" style="border-top: 4px solid #111; margin-bottom: 0; display: flex; align-items: center; justify-content: center; height: 100%;">
+                """,
+                unsafe_allow_html=True
+            )
+            st.markdown('<div class="inline-term-btn">', unsafe_allow_html=True)
+            if st.button("📖 术语解释总结", key="inline_terms_btn", use_container_width=True):
                 st.session_state.show_terms_page = True
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        st.write("") # 间距微调
 
         if not success_db:
             st.error("主数据加载失败！请确保对应的 Excel 文件与本项目代码在同一目录下。")
