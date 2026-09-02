@@ -177,11 +177,11 @@ NEWSPRINT_CSS = """
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
         margin-right: 6px;
         border: 1px solid #111111;
     }
-    /* 条款排版 */
+    /* 条款排版容器 */
     .law-content {
         background-color: #ffffff;
         border: 1px solid #111111;
@@ -191,7 +191,6 @@ NEWSPRINT_CSS = """
         line-height: 1.8;
         font-size: 1rem;
         text-align: justify;
-        white-space: pre-wrap;
         border-radius: 0px !important;
     }
     /* 术语卡片 */
@@ -653,7 +652,7 @@ else:
                             if sec_title in active_case["sections"]:
                                 content_val = active_case["sections"][sec_title]
                                 st.markdown(f"<h3 style='font-family: Playfair Display, serif; margin-top: 25px; border-bottom: 1px solid #111;'>📌 {sec_title}</h3>", unsafe_allow_html=True)
-                                st.markdown(f'<div class="law-content">{content_val}</div>', unsafe_allow_html=True)
+                                st.markdown(f'<div class="law-content" style="white-space: pre-wrap;">{content_val}</div>', unsafe_allow_html=True)
                     else:
                         st.warning("未找到该案例详情。")
             except Exception as e:
@@ -745,15 +744,25 @@ else:
                         st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
                         for idx, row in group.reset_index().iterrows():
                             sc0 = row["sub_cat_0"]
+                            tags_html = ""
                             if sc0:
                                 # 展示合并后的所有适用场景标签
                                 tags = [t.strip() for t in sc0.split("|") if t.strip()]
-                                tags_html = "".join([f'<span class="law-tag">💡 {t}</span>' for t in tags])
-                                st.markdown(tags_html, unsafe_allow_html=True)
+                                tags_str = "".join([f'<span class="law-tag">💡 {t}</span>' for t in tags])
+                                tags_html = f'<div style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #E5E5E0;">{tags_str}</div>'
+                            
                             content_text = row["content"]
                             if keyword:
                                 content_text = content_text.replace(keyword, f"<span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:0 2px;'>{keyword}</span>")
-                            st.markdown(f'<div class="law-content">{content_text}</div>', unsafe_allow_html=True)
+                            
+                            # 将适用场景标签与法条文本无缝嵌入同一个卡片内
+                            item_card_html = (
+                                f'<div class="law-content" style="margin-bottom: 20px; white-space: normal;">'
+                                f'{tags_html}'
+                                f'<div style="white-space: pre-wrap; line-height: 1.8;">{content_text}</div>'
+                                f'</div>'
+                            )
+                            st.markdown(item_card_html, unsafe_allow_html=True)
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
                 st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
@@ -792,7 +801,7 @@ else:
                                 <div class="timeline-card hard-shadow-hover">
                                     <span class="law-tag">{tag_str}</span>
                                     <h4 style="margin-top: 5px; color: #111111; font-family: Playfair Display, serif; border-bottom: none;">{law_t}</h4>
-                                    <div class="law-content" style="margin-bottom: 0;">{content}</div>
+                                    <div class="law-content" style="margin-bottom: 0; white-space: pre-wrap;">{content}</div>
                                 </div>
                             </div>
                             """
