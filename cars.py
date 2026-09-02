@@ -115,27 +115,28 @@ NEWSPRINT_CSS = """
         display: none !important;
     }
 
-    /* 顶部无边框文字导航链接样式：单行平铺、带黑色细底线、悬浮变色 */
+    /* 四个核心导航链接样式：无方框、紧凑挨着、下方带黑色细线、悬浮变色 */
     .nav-link-btn button {
         background-color: transparent !important;
         color: #111111 !important;
         border: none !important;
-        border-bottom: 1px solid #111111 !important;
+        border-bottom: 2px solid #111111 !important;
         border-radius: 0px !important;
         font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         box-shadow: none !important;
-        width: 100%;
-        padding: 8px 0px !important;
+        width: auto !important;
+        padding: 6px 16px !important;
+        margin: 0px !important;
         text-align: center;
-        transition: color 100ms ease, background-color 100ms ease !important;
+        transition: all 100ms ease !important;
     }
     .nav-link-btn button:hover {
         background-color: #111111 !important;
         color: #F9F9F7 !important;
-        border-bottom: 1px solid #111111 !important;
+        border-bottom: 2px solid #111111 !important;
         box-shadow: none !important;
     }
 
@@ -400,9 +401,9 @@ with top_col1:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# 顶部导航栏：从左到右依次为 首页 - 法律库 - 出境全流程时间轴 - 关于我们 (无方框包裹，单行平铺，带有底部黑色细线)
-nav_cols = st.columns(4)
-with nav_cols[0]:
+# 顶部导航栏：紧凑挨在一起、单行平铺、底部带有黑色细线
+nav_container_cols = st.columns([0.1, 0.1, 0.15, 0.1, 0.55])
+with nav_container_cols[0]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("首页", key="nav_home"):
         st.session_state.nav_choice = "首页"
@@ -410,7 +411,7 @@ with nav_cols[0]:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with nav_cols[1]:
+with nav_container_cols[1]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("法律库", key="nav_law"):
         st.session_state.nav_choice = "法律库"
@@ -418,7 +419,7 @@ with nav_cols[1]:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with nav_cols[2]:
+with nav_container_cols[2]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("出境全流程时间轴", key="nav_timeline"):
         st.session_state.nav_choice = "出境全流程时间轴"
@@ -426,7 +427,7 @@ with nav_cols[2]:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with nav_cols[3]:
+with nav_container_cols[3]:
     st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
     if st.button("关于我们", key="nav_about"):
         st.session_state.nav_choice = "关于我们"
@@ -440,7 +441,6 @@ with nav_cols[3]:
 if st.session_state.show_terms_page:
     st.markdown("<h2 style='text-align: center; border-bottom: 3px solid #111;'>📖 术语解释总结全库专栏</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-family: Lora, serif; color: #666666;'>展示完整的汽车数据及出境合规术语释义，还原现代纸媒专栏的严谨审慎与清晰结构。</p>", unsafe_allow_html=True)
-    st.markdown("---")
 
     term_keyword = st.text_input("🔍 检索术语关键字 (如：个人信息、重要数据、GDPR...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
 
@@ -612,7 +612,6 @@ else:
             conn = sqlite3.connect(DB_FILE)
 
             if st.session_state.nav_choice == "法律库":
-                # 将原来的侧边栏筛选控件放在主界面上方
                 filter_col1, filter_col2 = st.columns(2)
                 with filter_col1:
                     selected_region = st.selectbox("🌐 司法辖区", ["全部", "中国", "欧盟", "美国"])
@@ -624,7 +623,6 @@ else:
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("📁 合规模块", categories)
 
-                # 穿透式法规检索搜索框直接放到这一行下面
                 keyword = st.text_input("🔍 穿透式法规检索关键词", placeholder="如：数据出境、GDPR...")
 
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
@@ -653,7 +651,6 @@ else:
                     st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
                 else:
                     st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
-                st.write("")
 
                 grouped = module_df.groupby("law_title")
 
@@ -680,7 +677,6 @@ else:
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
                 st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
-                st.write("")
 
                 all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
 
