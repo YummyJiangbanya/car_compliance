@@ -115,8 +115,32 @@ NEWSPRINT_CSS = """
         display: none !important;
     }
 
-    /* 顶部导航栏按钮统一样式 */
-    .stButton button {
+    /* 顶部无边框文字导航链接样式：单行平铺、带黑色细底线、悬浮变色 */
+    .nav-link-btn button {
+        background-color: transparent !important;
+        color: #111111 !important;
+        border: none !important;
+        border-bottom: 1px solid #111111 !important;
+        border-radius: 0px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        box-shadow: none !important;
+        width: 100%;
+        padding: 8px 0px !important;
+        text-align: center;
+        transition: color 100ms ease, background-color 100ms ease !important;
+    }
+    .nav-link-btn button:hover {
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
+        border-bottom: 1px solid #111111 !important;
+        box-shadow: none !important;
+    }
+
+    /* 术语解释跳转按钮样式（左上角独立） */
+    .top-term-btn button {
         background-color: #F9F9F7 !important;
         color: #111111 !important;
         border: 1px solid #111111 !important;
@@ -129,7 +153,7 @@ NEWSPRINT_CSS = """
         width: 100%;
         transition: background-color 100ms ease, color 100ms ease !important;
     }
-    .stButton button:hover {
+    .top-term-btn button:hover {
         background-color: #111111 !important;
         color: #F9F9F7 !important;
         border: 1px solid #111111 !important;
@@ -367,39 +391,48 @@ def init_database_from_excel():
 success_db = init_database_from_excel()
 
 
-# ==================== 4. 页面最顶端：术语解释按钮与导航栏集成 ====================
+# ==================== 4. 页面最顶端：左上角术语按钮与顶端无边框黑色细线导航栏 ====================
 top_col1, top_col2 = st.columns([1, 4])
 with top_col1:
+    st.markdown('<div class="top-term-btn">', unsafe_allow_html=True)
     if st.button("📖 术语解释总结" if not st.session_state.show_terms_page else "🔙 返回主检索系统", key="top_terms_btn"):
         toggle_terms_page()
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("---")
-
-# 顶部导航栏：从左到右依次为 首页 - 法律库 - 出境全流程时间轴 - 关于我们
+# 顶部导航栏：从左到右依次为 首页 - 法律库 - 出境全流程时间轴 - 关于我们 (无方框包裹，单行平铺，带有底部黑色细线)
 nav_cols = st.columns(4)
 with nav_cols[0]:
-    if st.button("🏠 首页", key="nav_home"):
+    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
+    if st.button("首页", key="nav_home"):
         st.session_state.nav_choice = "首页"
         st.session_state.show_terms_page = False
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
 with nav_cols[1]:
-    if st.button("📑 法律库", key="nav_law"):
+    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
+    if st.button("法律库", key="nav_law"):
         st.session_state.nav_choice = "法律库"
         st.session_state.show_terms_page = False
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
 with nav_cols[2]:
-    if st.button("⏱️ 出境全流程时间轴", key="nav_timeline"):
+    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
+    if st.button("出境全流程时间轴", key="nav_timeline"):
         st.session_state.nav_choice = "出境全流程时间轴"
         st.session_state.show_terms_page = False
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
 with nav_cols[3]:
-    if st.button("ℹ️ 关于我们", key="nav_about"):
+    st.markdown('<div class="nav-link-btn">', unsafe_allow_html=True)
+    if st.button("关于我们", key="nav_about"):
         st.session_state.nav_choice = "关于我们"
         st.session_state.show_terms_page = False
         st.rerun()
-
-st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==================== 5. 页面展示逻辑 ====================
@@ -590,8 +623,6 @@ else:
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("📁 合规模块", categories)
-
-                st.markdown("---")
 
                 # 穿透式法规检索搜索框直接放到这一行下面
                 keyword = st.text_input("🔍 穿透式法规检索关键词", placeholder="如：数据出境、GDPR...")
