@@ -555,6 +555,18 @@ else:
             """, 
             unsafe_allow_html=True
         )
+        st.markdown(
+            """
+            <div style="padding: 0 4px; margin-top: 10px; margin-bottom: 25px;">
+                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.8; color: #333333; margin-bottom: 0;'>
+                    项目概况：<br><br>
+                    本项目聚焦智能网联汽车出海欧盟时，车外实景影像数据跨境流动的双向合规困境。中国《汽车数据出境安全指引》与欧盟GDPR在数据定性、出境路径及执法机制上存在显著冲突，导致企业面临高昂合规成本及法律风险。研究采用功能主义比较法，通过规范分析、企业访谈及案例实证，揭示中欧规制差异，并构建分场景双向合规操作框架及数字化风险识别平台。
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     elif st.session_state.nav_choice == "关于我们":
         st.markdown(
             """
@@ -571,12 +583,22 @@ else:
             <div class="sharp-card" style="border-top: 4px solid #111;">
                 <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>关于我们</h1>
                 <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
-                    此处保持空白，后续可根据需要自由添加平台介绍及团队信息。
                 </p>
             </div>
             """, 
             unsafe_allow_html=True
         )
+        st.markdown(
+            """
+            <div style="padding: 0 4px; margin-top: 10px; margin-bottom: 25px;">
+                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.8; color: #333333; margin-bottom: 0;'>
+                    汽车数据观察室，是由华东政法大学国际金融法律学院、法律学院、经济法学院、传播学院、商学院五大学院本科生组建的跨学科研究团队。我们聚焦中国智能网联汽车出海欧盟过程中，车外实景影像数据跨境流动面临的中欧法律规制冲突，通过比较法研究、案例实证与企业深度访谈，探索兼顾数据安全与产业发展的双向合规路径，为中国汽车产业的全球化进程提供学术支撑与实践参考。
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     elif st.session_state.nav_choice == "案例库":
         st.markdown(
             """
@@ -615,7 +637,7 @@ else:
                         <div class="sharp-card" style="border-top: 4px solid #111;">
                             <h1 style='margin-top:0; border-bottom:none; font-size: 2.4rem;'>合规典型案例库</h1>
                             <p style='font-family: Lora, serif; font-size: 1rem; line-height: 1.5; color: #333333; margin-bottom: 0;'>
-                                汇总全球数据合规与跨境执法典型案例。点击下方案例名称，即可穿透式查看包含<b>案件基本信息、基本情况、法律分析、处罚结果、合规启示与相关资料</b>在内的六大核心板块全景。
+                                典型案例库，收录全球数据合规与跨境执法案件。点击案例名称，可查看案件基本信息、事实梳理、法律分析、处罚结果、合规启示和原始资料链接。
                             </p>
                         </div>
                         """, 
@@ -631,7 +653,7 @@ else:
                                     ⚖️ {c_name}
                                 </h3>
                                 <p style="font-family: Lora, serif; color: #666; margin-bottom: 15px; font-size: 0.95rem;">
-                                    包含完整六维合规剖析：案件背景、事实梳理、GDPR/国内法核心条款穿透、监管逻辑、处罚裁决与出海启示。
+                                    每起案例从六个角度拆解：案件背景、事实梳理、GDPR或国内法核心条款、监管逻辑、处罚裁决，以及对出海的启示。
                                 </p>
                             </div>
                             """,
@@ -677,8 +699,8 @@ else:
                 <div class="sharp-card" style="border-top: 4px solid #111; margin-bottom: 0; height: 100%;">
                     <h1 style='margin-top:0; border-bottom:none; font-size: 2.4rem;'>智能网联汽车跨国数据合规平台</h1>
                     <p style='font-family: Lora, serif; font-size: 1rem; line-height: 1.5; color: #333333; margin-bottom: 0;'>
-                        全面汇总 <b>中国、欧盟、美国</b> 三大核心司法辖区车外实景影像与关键汽车数据合规指引。<br>
-                        秉持绝对清晰的网格架构与严谨审慎的编辑标准，为出境合规提供权威决策支撑。
+                        <b>中国、欧盟、美国</b>三大法域的车外实景影像及关键汽车数据合规要求汇总。<br>
+                        按法域分类整理，方便对照查阅，帮您在做跨境合规时快速找到需要的规则。
                     </p>
                 </div>
                 """, 
@@ -713,7 +735,7 @@ else:
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("📁 合规模块", categories)
-                keyword = st.text_input("🔍 穿透式法规检索关键词", placeholder="如：数据出境、GDPR...")
+                keyword = st.text_input("🔍 搜索", placeholder="如：数据出境、GDPR...")
                 
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
                 conditions = []
@@ -765,13 +787,13 @@ else:
                             st.markdown(item_card_html, unsafe_allow_html=True)
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
-                st.markdown("通过合规生命周期节点（**Phase 1：出境前准备与评估** ➔ **Phase 2：出境中实施与传输** ➔ **Phase 3：出境后合规监督**），直观展现合规实操全景。")
+                st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
                 all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
                 timeline_phases = [
                     {"title": "Phase 1：出境前准备与评估 (Data Mapping & Assessment)", 
                      "desc": "完成数据资产梳理、分类分级，执行数据出境安全评估、标准合同签署或个人信息保护认证。"},
                     {"title": "Phase 2：出境中实施与传输 (Secure Transmission & Protection)", 
-                     "desc": "在符合车内处理、默认不收集、脱敏等原则下，落实跨境传输链路安全及技术保护措施。"},
+                     "desc": "车内处理、默认不收集、脱敏等原则，以及跨境传输链路安全和技术保护措施。"},
                     {"title": "Phase 3：出境后合规监督 (Post-transfer Monitoring & Audit)", 
                      "desc": "建立持续合规审计机制、安全事件应急响应与境外接收方权益保障监督。"}
                 ]
