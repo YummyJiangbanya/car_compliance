@@ -1,16 +1,13 @@
 import os
-import io
 import re
 import sqlite3
 import pandas as pd
 import openpyxl
 import streamlit as st
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from io import BytesIO
 
 # ==================== 1. 页面配置 ====================
 st.set_page_config(
@@ -27,6 +24,8 @@ if "show_terms_page" not in st.session_state:
     st.session_state.show_terms_page = False
 if "selected_case" not in st.session_state:
     st.session_state.selected_case = None
+if "selected_laws" not in st.session_state:
+    st.session_state.selected_laws = []
 
 # ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格) ====================
 NEWSPRINT_CSS = """
@@ -268,99 +267,6 @@ NEWSPRINT_CSS = """
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
 DB_FILE = "car_compliance.db"
-
-# ==================== PDF 生成辅助函数 ====================
-# 使用 ReportLab 内置中文 CID 字体，避免服务器缺少本地中文字体导致 PDF 乱码
-pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
-
-def build_selected_laws_pdf(selected_laws):
-    """根据用户勾选的法条生成可下载的 PDF。"""
-    buffer = io.BytesIO()
-    doc_pdf = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=42,
-        leftMargin=42,
-        topMargin=48,
-        bottomMargin=48
-    )
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "ChineseTitle",
-        parent=styles["Title"],
-        fontName="STSong-Light",
-        fontSize=18,
-        leading=26,
-        alignment=TA_CENTER,
-        spaceAfter=18
-    )
-    law_style = ParagraphStyle(
-        "ChineseLawTitle",
-        parent=styles["Heading2"],
-        fontName="STSong-Light",
-        fontSize=13,
-        leading=20,
-        spaceBefore=10,
-        spaceAfter=8
-    )
-    article_style = ParagraphStyle(
-        "ChineseArticle",
-        parent=styles["BodyText"],
-        fontName="STSong-Light",
-        fontSize=10.5,
-        leading=18,
-        firstLineIndent=0,
-        spaceAfter=12
-    )
-    note_style = ParagraphStyle(
-        "ChineseNote",
-        parent=styles["BodyText"],
-        fontName="STSong-Light",
-        fontSize=9.5,
-        leading=16,
-        spaceBefore=18
-    )
-
-    story = [
-        Paragraph("企业合规自查法条清单", title_style),
-        Paragraph(
-            f"共选中 {len(selected_laws)} 条法条",
-            ParagraphStyle(
-                "Count",
-                parent=article_style,
-                alignment=TA_CENTER,
-                fontSize=10
-            )
-        ),
-        Spacer(1, 8)
-    ]
-
-    for index, item in enumerate(selected_laws, start=1):
-        law_title = str(item.get("law_title", "")).strip()
-        content = str(item.get("content", "")).strip()
-
-        # 将换行转为 PDF 可识别的换行标签，同时转义 HTML 特殊字符
-        import html
-        safe_law_title = html.escape(law_title)
-        safe_content = html.escape(content).replace("\n", "<br/>")
-
-        block = [
-            Paragraph(f"{index}. {safe_law_title}", law_style),
-            Paragraph(safe_content, article_style)
-        ]
-        story.append(KeepTogether(block))
-
-    story.append(
-        Paragraph(
-            "<b>提示：</b> 本清单用于企业合规检索与参考，不构成法律意见。",
-            note_style
-        )
-    )
-
-    doc_pdf.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
 
 # ==================== 3. 核心处理与数据库函数 ====================
 def extract_sort_key(text):
@@ -821,11 +727,13 @@ else:
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("📁 合规模块", categories)
+
                 keyword = st.text_input("🔍 搜索", placeholder="如：数据出境、GDPR...")
-                
-                query = "SELECT id, region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
+
+                query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
                 conditions = []
                 params = []
+
                 if selected_region != "全部":
                     conditions.append("region = ?")
                     params.append(selected_region)
@@ -836,132 +744,144 @@ else:
                     wildcard = f"%{keyword}%"
                     conditions.append("(content LIKE ? OR law_title LIKE ? OR category LIKE ? OR sub_cat_0 LIKE ? OR sub_cat_1 LIKE ?)")
                     params.extend([wildcard]*5)
+
                 if conditions:
                     query += " WHERE " + " AND ".join(conditions)
+
                 query += " ORDER BY region, category, sort_order"
                 module_df = pd.read_sql(query, conn, params=tuple(params))
+
                 if keyword:
                     st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"**检索条件**：辖区 [{selected_region}] &nbsp;|&nbsp; 模块 [{selected_category}] &nbsp;➔&nbsp; 共计检索到 **{len(module_df)}** 条内容")
-                            # ==================== 法条多选与 PDF 生成 ====================
-                # 用 Session State 保存用户勾选，切换筛选条件或搜索关键词时不会因为页面重绘而丢失选择。
-                if "selected_law_ids" not in st.session_state:
-                    st.session_state.selected_law_ids = set()
+                    st.markdown(f"**检索条件**：辖区 [{selected_region}] | 模块 [{selected_category}] ➔ 共计检索到 **{len(module_df)}** 条内容")
 
-                selected_ids = st.session_state.selected_law_ids
-
-                action_col1, action_col2 = st.columns([3, 1])
-                with action_col1:
-                    st.markdown(
-                        f"**已勾选法条：{len(selected_ids)} 条**"
-                    )
-                with action_col2:
-                    if selected_ids:
-                        selected_rows_for_pdf = pd.read_sql(
-                            "SELECT id, region, category, law_title, content "
-                            "FROM compliance_laws WHERE id IN ({}) ORDER BY region, category, law_title, sort_order".format(
-                                ",".join(["?"] * len(selected_ids))
-                            ),
-                            conn,
-                            params=tuple(selected_ids)
-                        )
-                        pdf_bytes = build_selected_laws_pdf(
-                            selected_rows_for_pdf.to_dict("records")
-                        )
-                        st.download_button(
-                            "📄 生成所选法条 PDF",
-                            data=pdf_bytes,
-                            file_name="企业合规自查法条清单.pdf",
-                            mime="application/pdf",
-                            use_container_width=True,
-                            key="download_selected_laws_pdf"
-                        )
-                    else:
-                        st.button(
-                            "📄 生成所选法条 PDF",
-                            disabled=True,
-                            use_container_width=True,
-                            key="download_selected_laws_pdf_disabled"
-                        )
-
-                if selected_ids:
-                    selected_rows_for_citation = pd.read_sql(
-                        "SELECT id, law_title FROM compliance_laws WHERE id IN ({}) ORDER BY id".format(
-                            ",".join(["?"] * len(selected_ids))
-                        ),
-                        conn,
-                        params=tuple(selected_ids)
-                    )
-                    citation_text = "\n".join(
-                        [str(x).strip() for x in selected_rows_for_citation["law_title"].tolist() if str(x).strip()]
-                    )
-                    st.markdown("**已选择法条的引用格式**")
-                    st.code(citation_text, language=None)
+                # 清除已不存在的选择
+                current_ids = set(module_df.index.tolist())
+                st.session_state.selected_laws = [
+                    x for x in st.session_state.selected_laws
+                    if x["db_index"] in current_ids
+                ]
 
                 grouped = module_df.groupby(["region", "category", "law_title"], sort=False)
+
                 for (region_name, cat_name, law_title), group in grouped:
-                    expander_label = f"📌 【{region_name}】 {law_title} ({len(group)}条)"
+                    expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
                     with st.expander(expander_label, expanded=False):
-                        st.markdown(
-                            f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>",
-                            unsafe_allow_html=True
-                        )
+                        st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
                         st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
 
-                        for idx, row in group.reset_index(drop=True).iterrows():
-                            law_id = int(row["id"])
-                            content_original = str(row["content"]) if pd.notna(row["content"]) else ""
+                        for idx, row in group.iterrows():
                             sc0 = row["sub_cat_0"]
+
+                            law_id = int(idx)
+                            law_text = row["content"]
+
+                            checked = st.checkbox(
+                                f"选择该条文",
+                                key=f"law_checkbox_{law_id}"
+                            )
+
+                            law_item = {
+                                "db_index": law_id,
+                                "law_title": law_title,
+                                "content": law_text
+                            }
+
+                            if checked:
+                                if not any(x["db_index"] == law_id for x in st.session_state.selected_laws):
+                                    st.session_state.selected_laws.append(law_item)
+                            else:
+                                st.session_state.selected_laws = [
+                                    x for x in st.session_state.selected_laws
+                                    if x["db_index"] != law_id
+                                ]
+
                             tags_html = ""
-
                             if sc0:
-                                # 展示合并后的所有适用场景标签
-                                tags = [t.strip() for t in str(sc0).split("|") if t.strip()]
-                                tags_str = "".join(
-                                    [f'<span class="law-tag">💡 {t}</span>' for t in tags]
-                                )
-                                tags_html = (
-                                    '<div style="margin-bottom: 10px; padding-bottom: 8px; '
-                                    f'border-bottom: 1px solid #E5E5E0;">{tags_str}</div>'
-                                )
+                                tags = [t.strip() for t in sc0.split("|") if t.strip()]
+                                tags_str = "".join([f'<span class="law-tag">💡 {t}</span>' for t in tags])
+                                tags_html = f'<div style="margin-bottom:10px;">{tags_str}</div>'
 
-                            # 复选框与原有法条展示并列，法条正文保持原来的显示逻辑
-                            check_col, content_col = st.columns([0.08, 0.92])
-                            with check_col:
-                                checked = st.checkbox(
-                                    "选择",
-                                    value=law_id in selected_ids,
-                                    key=f"law_select_{law_id}",
-                                    label_visibility="collapsed"
-                                )
-                                if checked:
-                                    selected_ids.add(law_id)
-                                else:
-                                    selected_ids.discard(law_id)
-
-                            content_text = content_original
+                            content_text = law_text
                             if keyword:
                                 content_text = content_text.replace(
                                     keyword,
-                                    f"<span style='background-color:#111; color:#F9F9F7; "
-                                    f"font-weight:bold; padding:0 2px;'>{keyword}</span>"
+                                    f"<span style='background-color:#111;color:#F9F9F7;font-weight:bold;'>{keyword}</span>"
                                 )
 
-                            # 将适用场景标签与法条文本无缝嵌入同一个卡片内
-                            item_card_html = (
-                                f'<div class="law-content" style="margin-bottom: 20px; '
-                                f'white-space: normal;">'
-                                f'{tags_html}'
-                                f'<div style="white-space: pre-wrap; line-height: 1.8;">'
-                                f'{content_text}</div>'
-                                f'</div>'
+                            st.markdown(
+                                f"""
+                                <div class="law-content" style="margin-bottom:20px;white-space:normal;">
+                                {tags_html}
+                                <div style="white-space:pre-wrap;line-height:1.8;">{content_text}</div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
                             )
-                            with content_col:
-                                st.markdown(item_card_html, unsafe_allow_html=True)
 
-                # 在当前页面重绘后保存最新选择
-                st.session_state.selected_law_ids = selected_ids
+                st.divider()
+
+                st.markdown(
+                    f"### 已选择 {len(st.session_state.selected_laws)} 条法条"
+                )
+
+                if st.session_state.selected_laws:
+                    st.markdown("**自动生成引用格式：**")
+                    for law in st.session_state.selected_laws:
+                        st.write(law["law_title"])
+
+                    if st.button("📄 生成所选法条 PDF"):
+                        buffer = BytesIO()
+
+                        pdf = SimpleDocTemplate(
+                            buffer,
+                            pagesize=A4
+                        )
+
+                        styles = getSampleStyleSheet()
+                        elements = []
+
+                        elements.append(
+                            Paragraph(
+                                "企业合规自查法条清单",
+                                styles["Title"]
+                            )
+                        )
+                        elements.append(Spacer(1, 12))
+
+                        for law in st.session_state.selected_laws:
+                            elements.append(
+                                Paragraph(
+                                    law["law_title"],
+                                    styles["Heading3"]
+                                )
+                            )
+                            elements.append(
+                                Paragraph(
+                                    law["content"].replace("\n", "<br/>"),
+                                    styles["BodyText"]
+                                )
+                            )
+                            elements.append(Spacer(1, 12))
+
+                        elements.append(
+                            Paragraph(
+                                "提示：本清单用于企业合规检索与参考，不构成法律意见。",
+                                styles["BodyText"]
+                            )
+                        )
+
+                        pdf.build(elements)
+
+                        buffer.seek(0)
+
+                        st.download_button(
+                            "⬇️ 下载PDF",
+                            data=buffer,
+                            file_name="企业合规自查法条清单.pdf",
+                            mime="application/pdf"
+                        )
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
                 st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
