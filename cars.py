@@ -6,8 +6,13 @@ import openpyxl
 import streamlit as st
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from io import BytesIO
+
+# 注册中文字体，避免PDF乱码
+pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 
 # ==================== 1. 页面配置 ====================
 st.set_page_config(
@@ -730,6 +735,18 @@ else:
 
                 keyword = st.text_input("🔍 搜索", placeholder="如：数据出境、GDPR...")
 
+                # 合规依据导出区域（固定在搜索栏下方，便于企业使用）
+                export_col1, export_col2 = st.columns([2, 1])
+                with export_col1:
+                    st.markdown(f"### 已选择 {len(st.session_state.selected_laws)} 条法条")
+                    if st.session_state.selected_laws:
+                        st.markdown("**自动生成引用格式：**")
+                        for law in st.session_state.selected_laws:
+                            st.write(law["law_title"])
+                with export_col2:
+                    st.markdown("### 操作")
+                    generate_pdf_clicked = st.button("📄 生成所选法条 PDF")
+
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
                 conditions = []
                 params = []
@@ -822,66 +839,42 @@ else:
 
                 st.divider()
 
-                st.markdown(
-                    f"### 已选择 {len(st.session_state.selected_laws)} 条法条"
-                )
+                if generate_pdf_clicked:
+                    buffer = BytesIO()
+                    pdf = SimpleDocTemplate(buffer, pagesize=A4)
 
-                if st.session_state.selected_laws:
-                    st.markdown("**自动生成引用格式：**")
+                    styles = getSampleStyleSheet()
+                    title_style = ParagraphStyle(
+                        "ChineseTitle", parent=styles["Title"], fontName="STSong-Light"
+                    )
+                    heading_style = ParagraphStyle(
+                        "ChineseHeading", parent=styles["Heading3"], fontName="STSong-Light"
+                    )
+                    body_style = ParagraphStyle(
+                        "ChineseBody", parent=styles["BodyText"], fontName="STSong-Light", leading=18
+                    )
+
+                    elements = []
+                    elements.append(Paragraph("企业合规自查法条清单", title_style))
+                    elements.append(Spacer(1, 12))
+
                     for law in st.session_state.selected_laws:
-                        st.write(law["law_title"])
-
-                    if st.button("📄 生成所选法条 PDF"):
-                        buffer = BytesIO()
-
-                        pdf = SimpleDocTemplate(
-                            buffer,
-                            pagesize=A4
-                        )
-
-                        styles = getSampleStyleSheet()
-                        elements = []
-
-                        elements.append(
-                            Paragraph(
-                                "企业合规自查法条清单",
-                                styles["Title"]
-                            )
-                        )
+                        elements.append(Paragraph(law["law_title"], heading_style))
+                        safe_content = law["content"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+                        elements.append(Paragraph(safe_content, body_style))
                         elements.append(Spacer(1, 12))
 
-                        for law in st.session_state.selected_laws:
-                            elements.append(
-                                Paragraph(
-                                    law["law_title"],
-                                    styles["Heading3"]
-                                )
-                            )
-                            elements.append(
-                                Paragraph(
-                                    law["content"].replace("\n", "<br/>"),
-                                    styles["BodyText"]
-                                )
-                            )
-                            elements.append(Spacer(1, 12))
+                    elements.append(Paragraph("提示：本清单用于企业合规检索与参考，不构成法律意见。", body_style))
+                    pdf.build(elements)
+                    buffer.seek(0)
 
-                        elements.append(
-                            Paragraph(
-                                "提示：本清单用于企业合规检索与参考，不构成法律意见。",
-                                styles["BodyText"]
-                            )
-                        )
+                    st.download_button(
+                        "⬇️ 下载PDF",
+                        data=buffer,
+                        file_name="企业合规自查法条清单.pdf",
+                        mime="application/pdf"
+                    )
 
-                        pdf.build(elements)
-
-                        buffer.seek(0)
-
-                        st.download_button(
-                            "⬇️ 下载PDF",
-                            data=buffer,
-                            file_name="企业合规自查法条清单.pdf",
-                            mime="application/pdf"
-                        )
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
                 st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
