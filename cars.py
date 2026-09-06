@@ -36,6 +36,7 @@ if "selected_laws" not in st.session_state:
 NEWSPRINT_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
+    
     :root {
         --bg-base: #F9F9F7;
         --bg-surface: #F9F9F7;
@@ -45,6 +46,7 @@ NEWSPRINT_CSS = """
         --accent-red: #CC0000;
         --divider-grey: #E5E5E0;
     }
+    
     /* 页面基础背景 */
     [data-testid="stAppViewContainer"] {
         background-color: var(--bg-base) !important;
@@ -55,11 +57,13 @@ NEWSPRINT_CSS = """
     [data-testid="stHeader"] {
         background-color: transparent !important;
     }
+    
     /* 全局字体定义 */
     html, body, p, label, li, .law-content {
         font-family: 'Lora', Georgia, serif;
         color: var(--text-primary);
     }
+    
     /* 标题统合 */
     h1, h2, h3, h4 {
         font-family: 'Playfair Display', 'Times New Roman', serif !important;
@@ -70,6 +74,7 @@ NEWSPRINT_CSS = """
         padding-bottom: 8px;
         margin-bottom: 20px;
     }
+    
     /* 绝对零圆角与硬阴影悬浮效果 */
     .sharp-card, div[data-testid="stExpander"], .term-card, .timeline-card, .header-card {
         background-color: #F9F9F7 !important;
@@ -84,6 +89,7 @@ NEWSPRINT_CSS = """
         box-shadow: 4px 4px 0px 0px #111111 !important;
         transform: translate(-2px, -2px);
     }
+    
     /* Expander 样式调整 */
     div[data-testid="stExpander"] { padding: 0 !important; }
     div[data-testid="stExpander"] summary {
@@ -111,10 +117,12 @@ NEWSPRINT_CSS = """
     div[data-testid="stExpander"] summary:hover p {
         color: #F9F9F7 !important;
     }
+    
     /* 隐藏默认侧边栏 */
     [data-testid="stSidebar"] {
         display: none !important;
     }
+    
     /* 顶端导航链接 */
     .nav-tabs-container {
         display: flex;
@@ -155,6 +163,7 @@ NEWSPRINT_CSS = """
         background-color: #111111 !important;
         color: #F9F9F7 !important;
     }
+    
     /* 术语按钮样式 */
     .inline-term-btn button {
         background-color: #F9F9F7 !important;
@@ -177,6 +186,7 @@ NEWSPRINT_CSS = """
         border: 1px solid #111111 !important;
         box-shadow: 2px 2px 0px 0px #111111 !important;
     }
+    
     /* 报纸风格标签 */
     .law-tag {
         display: inline-block;
@@ -192,6 +202,7 @@ NEWSPRINT_CSS = """
         margin-right: 6px;
         border: 1px solid #111111;
     }
+    
     /* 条款排版容器 */
     .law-content {
         background-color: #ffffff;
@@ -204,6 +215,7 @@ NEWSPRINT_CSS = """
         text-align: justify;
         border-radius: 0px !important;
     }
+    
     /* 术语卡片 */
     .term-card {
         border-left: 6px solid var(--accent-red) !important;
@@ -215,6 +227,7 @@ NEWSPRINT_CSS = """
         margin-top: 15px;
         text-align: right;
     }
+    
     /* 时间轴 */
     .timeline-container {
         position: relative;
@@ -236,6 +249,7 @@ NEWSPRINT_CSS = """
         background-color: #F9F9F7;
         border: 3px solid #111111;
     }
+    
     /* 输入框设计 */
     div[data-testid="stTextInput"] input {
         background-color: transparent !important;
@@ -255,6 +269,7 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         font-size: 0.8rem;
     }
+    
     /* 报头元数据 */
     .newsprint-masthead {
         border-top: 3px solid #111111;
@@ -271,6 +286,7 @@ NEWSPRINT_CSS = """
 </style>
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
+
 DB_FILE = "car_compliance.db"
 
 # ==================== 3. 核心处理与数据库函数 ====================
@@ -301,6 +317,8 @@ def get_clean_cell_text(cell):
     else:
         full_text = str(cell.value)
     
+    # 彻底清理复制引入的独立 svg 占位符
+    full_text = re.sub(r'(?im)^\s*svg\s*$', '', full_text)
     return full_text.strip()
 
 def clean_scenario_cell(val):
@@ -335,6 +353,7 @@ def init_database_from_excel():
                 break
     if not excel_path or not os.path.exists(excel_path):
         return False
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -350,25 +369,29 @@ def init_database_from_excel():
         )
     """)
     cursor.execute("DELETE FROM compliance_laws")
+
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
     df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
+
     categories_row = df_raw.iloc[0]
     titles_row = df_raw.iloc[1]
+    
     col0_raw = df_raw.iloc[:, 0] if len(df_raw.columns) > 0 else pd.Series([""] * len(df_raw))
     col1_raw = df_raw.iloc[:, 1] if len(df_raw.columns) > 1 else pd.Series([""] * len(df_raw))
     col2_raw = df_raw.iloc[:, 2] if len(df_raw.columns) > 2 else pd.Series([""] * len(df_raw))
+
     laws_dict = {}
     laws_order = []
     all_law_columns = []
-    # 遍历第 3 列及以后的所有列（法规列）
+
     for col_idx in range(3, len(df_raw.columns)):
         cat_raw = str(categories_row.iloc[col_idx]).strip()
         law_title = str(titles_row.iloc[col_idx]).strip()
         if not law_title or law_title == "nan":
             continue
-        # 第一行精准拆分 司法辖区 与 合规模块
+
         if "-" in cat_raw:
             parts = cat_raw.split("-", 1)
             region = parts[0].strip()
@@ -394,22 +417,23 @@ def init_database_from_excel():
             else:
                 region = "中国"
                 category = cat_raw if cat_raw and cat_raw != "nan" else "通用模块"
+
         all_law_columns.append((region, category, law_title))
-        # 遍历全列的所有数据单元格（第 2 行开始）
+
         for row_idx in range(2, len(df_raw)):
             cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
             content_str = get_clean_cell_text(cell_obj)
+            
             if content_str and content_str != "nan":
-                # 精准提取第 0、1、2 列适用场景：自动过滤空列并用 ➔ 拼接
                 s0 = clean_scenario_cell(col0_raw.iloc[row_idx])
                 s1 = clean_scenario_cell(col1_raw.iloc[row_idx])
                 s2 = clean_scenario_cell(col2_raw.iloc[row_idx]) if len(df_raw.columns) > 2 else ""
+                
                 sc_parts = [x for x in [s0, s1, s2] if x]
                 scenario_text = " ➔ ".join(sc_parts)
-                
                 sort_val = extract_sort_key(content_str)
+                
                 key = (region, category, law_title, content_str)
-                # 识别重复法条：若同一个法规下的法条内容完全一样，合并条目并累计不同的适用场景
                 if key not in laws_dict:
                     laws_dict[key] = {
                         "region": region,
@@ -420,9 +444,10 @@ def init_database_from_excel():
                         "scenarios": []
                     }
                     laws_order.append(key)
+                
                 if scenario_text and scenario_text not in laws_dict[key]["scenarios"]:
                     laws_dict[key]["scenarios"].append(scenario_text)
-    # 将合并后的法条数据写入 SQLite 数据库
+
     processed_laws = set()
     for key in laws_order:
         item = laws_dict[key]
@@ -432,13 +457,14 @@ def init_database_from_excel():
             (item["region"], item["category"], item["law_title"], combined_scenarios, "", item["content"], item["sort_order"])
         )
         processed_laws.add((item["region"], item["category"], item["law_title"]))
-    # 保留占位（应对暂无可检索条文的法规列）
+
     for (r, c, lt) in set(all_law_columns):
         if (r, c, lt) not in processed_laws:
             cursor.execute(
                 "INSERT INTO compliance_laws (region, category, law_title, sub_cat_0, sub_cat_1, content, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (r, c, lt, "", "", "（该法规条文正在整理补充中，敬请期待...）", 999)
             )
+            
     conn.commit()
     conn.close()
     return True
@@ -470,9 +496,12 @@ for idx, (label, choice_key) in enumerate(nav_items):
 if st.session_state.show_terms_page:
     st.markdown("<h2 style='text-align: center; border-bottom: 3px solid #111;'>📖 术语解释总结全库专栏</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-family: Lora, serif; color: #666666;'>展示完整的汽车数据及出境合规术语释义，还原现代纸媒专栏的严谨审慎与清晰结构。</p>", unsafe_allow_html=True)
+    
     term_keyword = st.text_input("🔍 检索术语关键字 (如：个人信息、重要数据、GDPR...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
+    
     current_dir = os.path.dirname(os.path.abspath(__file__))
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
+    
     if os.path.exists(term_excel_path):
         try:
             wb = openpyxl.load_workbook(term_excel_path, data_only=True)
@@ -480,6 +509,7 @@ if st.session_state.show_terms_page:
             law_names = []
             for cell in ws[1]:
                 law_names.append(str(cell.value).strip() if cell.value else "")
+                
             terms_list = []
             for row in ws.iter_rows(min_row=2):
                 for c_idx, cell in enumerate(row):
@@ -488,6 +518,7 @@ if st.session_state.show_terms_page:
                         if not cell_str or cell_str.lower() == "nan":
                             continue
                         source_law = law_names[c_idx] if c_idx < len(law_names) and law_names[c_idx] else "未知法规"
+                        
                         parts = cell_str.split(":", 1)
                         if len(parts) == 2:
                             term_name = parts[0].strip()
@@ -495,11 +526,13 @@ if st.session_state.show_terms_page:
                         else:
                             term_name = cell_str
                             definition = cell_str
+                            
                         color = None
                         if cell.fill and cell.fill.start_color:
                             color_val = cell.fill.start_color.index
                             if color_val and str(color_val) != '00000000':
                                 color = str(color_val)
+                                
                         terms_list.append({
                             "term_name": term_name,
                             "definition": definition,
@@ -507,6 +540,7 @@ if st.session_state.show_terms_page:
                             "color": color,
                             "original_full": cell_str
                         })
+                        
             final_results = []
             if term_keyword:
                 term_keyword_lower = term_keyword.lower()
@@ -524,25 +558,30 @@ if st.session_state.show_terms_page:
             else:
                 final_results = terms_list
                 st.markdown(f"**当前库内完整术语/条文共计：{len(final_results)} 条**")
+                
             for t_item in final_results:
                 if t_item['term_name'] != t_item['definition']:
                     def_html = f"<b>{t_item['term_name']}：</b>" + t_item['definition']
                 else:
                     def_html = t_item['original_full']
+                
+                # 显式将 \n 替换为 <br> 防止打断 Markdown HTML 解析
+                def_html = def_html.replace('\n', '<br>')
                 source_text = f"（来源：《{t_item['source']}》）"
-                st.markdown(
-                    f"""
-                    <div class="term-card hard-shadow-hover">
-                        <div>{def_html}</div>
-                        <div class="term-source">{source_text}</div>
-                    </div>
-                    """, 
-                    unsafe_allow_html=True
+                
+                html_str = (
+                    f'<div class="term-card hard-shadow-hover">'
+                    f'<div>{def_html}</div>'
+                    f'<div class="term-source">{source_text}</div>'
+                    f'</div>'
                 )
+                st.markdown(html_str, unsafe_allow_html=True)
+                
         except Exception as e:
             st.error(f"加载术语表异常: {e}")
     else:
         st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
+
 else:
     if st.session_state.nav_choice == "首页":
         st.markdown(
@@ -610,6 +649,7 @@ else:
         
         current_dir = os.path.dirname(os.path.abspath(__file__))
         case_excel_path = os.path.join(current_dir, "案例库.xlsx")
+        
         if os.path.exists(case_excel_path):
             try:
                 df_case = pd.read_excel(case_excel_path, header=None)
@@ -628,6 +668,7 @@ else:
                         "case_name": case_name,
                         "sections": sections
                     })
+                    
                 if st.session_state.selected_case is None:
                     st.markdown(
                         """
@@ -664,6 +705,7 @@ else:
                     if st.button("⬅ 返回案例库列表", key="back_to_cases"):
                         st.session_state.selected_case = None
                         st.rerun()
+                        
                     if active_case:
                         st.markdown(f"<h1 style='margin-top: 10px; font-size: 2.5rem;'>{active_case['case_name']}</h1>", unsafe_allow_html=True)
                         sections_order = ["案件基本信息", "案件基本情况", "法律分析", "处罚结果", "合规启示", "相关资料"]
@@ -671,13 +713,17 @@ else:
                             if sec_title in active_case["sections"]:
                                 content_val = active_case["sections"][sec_title]
                                 st.markdown(f"<h3 style='font-family: Playfair Display, serif; margin-top: 25px; border-bottom: 1px solid #111;'>📌 {sec_title}</h3>", unsafe_allow_html=True)
-                                st.markdown(f'<div class="law-content" style="white-space: pre-wrap;">{content_val}</div>', unsafe_allow_html=True)
+                                
+                                # 将 \n 替换为 <br> 防止打断 HTML 块解析
+                                safe_content_val = content_val.replace('\n', '<br>')
+                                st.markdown(f'<div class="law-content" style="white-space: pre-wrap;">{safe_content_val}</div>', unsafe_allow_html=True)
                     else:
                         st.warning("未找到该案例详情。")
             except Exception as e:
                 st.error(f"加载案例库表格异常: {e}")
         else:
             st.warning("未检测到 `案例库.xlsx` 文件，请确认已上传至同一目录。")
+            
     else:
         st.markdown(
             """
@@ -689,6 +735,7 @@ else:
             """,
             unsafe_allow_html=True
         )
+        
         title_col, btn_col = st.columns([4, 1])
         with title_col:
             st.markdown(
@@ -716,11 +763,14 @@ else:
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
+            
         st.write("")
+        
         if not success_db:
             st.error("主数据加载失败！请确保对应的 Excel 文件与本项目代码在同一目录下。")
         else:
             conn = sqlite3.connect(DB_FILE)
+            
             if st.session_state.nav_choice == "法律库":
                 filter_col1, filter_col2 = st.columns(2)
                 with filter_col1:
@@ -732,10 +782,10 @@ else:
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("📁 合规模块", categories)
-
+                    
                 keyword = st.text_input("🔍 搜索", placeholder="如：数据出境、GDPR...")
-
-                # 合规依据导出区域（固定在搜索栏下方，便于企业使用）
+                
+                # 合规依据导出区域
                 export_col1, export_col2 = st.columns([2, 1])
                 with export_col1:
                     st.markdown(f"### 已选择 {len(st.session_state.selected_laws)} 条法条")
@@ -746,11 +796,12 @@ else:
                 with export_col2:
                     st.markdown("### 操作")
                     generate_pdf_clicked = st.button("📄 生成所选法条 PDF")
-
+                    # 【核心修改2】增加一个占位容器存放下载按钮，确保它在“生成PDF”按钮正下方
+                    pdf_download_container = st.container()
+                    
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
                 conditions = []
                 params = []
-
                 if selected_region != "全部":
                     conditions.append("region = ?")
                     params.append(selected_region)
@@ -761,50 +812,47 @@ else:
                     wildcard = f"%{keyword}%"
                     conditions.append("(content LIKE ? OR law_title LIKE ? OR category LIKE ? OR sub_cat_0 LIKE ? OR sub_cat_1 LIKE ?)")
                     params.extend([wildcard]*5)
-
+                    
                 if conditions:
                     query += " WHERE " + " AND ".join(conditions)
-
                 query += " ORDER BY region, category, sort_order"
+                
                 module_df = pd.read_sql(query, conn, params=tuple(params))
-
+                
                 if keyword:
                     st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
                 else:
                     st.markdown(f"**检索条件**：辖区 [{selected_region}] | 模块 [{selected_category}] ➔ 共计检索到 **{len(module_df)}** 条内容")
-
+                    
                 # 清除已不存在的选择
                 current_ids = set(module_df.index.tolist())
                 st.session_state.selected_laws = [
                     x for x in st.session_state.selected_laws
                     if x["db_index"] in current_ids
                 ]
-
+                
                 grouped = module_df.groupby(["region", "category", "law_title"], sort=False)
-
                 for (region_name, cat_name, law_title), group in grouped:
                     expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
                     with st.expander(expander_label, expanded=False):
                         st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
                         st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
-
+                        
                         for idx, row in group.iterrows():
                             sc0 = row["sub_cat_0"]
-
                             law_id = int(idx)
                             law_text = row["content"]
-
+                            
                             checked = st.checkbox(
                                 f"选择该条文",
                                 key=f"law_checkbox_{law_id}"
                             )
-
+                            
                             law_item = {
                                 "db_index": law_id,
                                 "law_title": law_title,
                                 "content": law_text
                             }
-
                             if checked:
                                 if not any(x["db_index"] == law_id for x in st.session_state.selected_laws):
                                     st.session_state.selected_laws.append(law_item)
@@ -813,37 +861,42 @@ else:
                                     x for x in st.session_state.selected_laws
                                     if x["db_index"] != law_id
                                 ]
-
+                                
                             tags_html = ""
                             if sc0:
                                 tags = [t.strip() for t in sc0.split("|") if t.strip()]
                                 tags_str = "".join([f'<span class="law-tag">💡 {t}</span>' for t in tags])
                                 tags_html = f'<div style="margin-bottom:10px;">{tags_str}</div>'
-
+                                
+                            # 【核心修改1】彻底防范换行与 svg 字符打断 HTML 解析
                             content_text = law_text
+                            content_text = re.sub(r'(?im)^\s*svg\s*$', '', content_text)
+                            
                             if keyword:
                                 content_text = content_text.replace(
                                     keyword,
                                     f"<span style='background-color:#111;color:#F9F9F7;font-weight:bold;'>{keyword}</span>"
                                 )
-
-                            st.markdown(
-                                f"""
-                                <div class="law-content" style="margin-bottom:20px;white-space:normal;">
-                                {tags_html}
-                                <div style="white-space:pre-wrap;line-height:1.8;">{content_text}</div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True
+                                
+                            # 将 \n 替换为 <br> 防止 Streamlit Markdown 遇到空行中止解析
+                            content_text = content_text.replace('\n', '<br>')
+                            
+                            # 拼装为一整行的 HTML 字符串注入避免多行代码块缩进解析 Bug
+                            html_str = (
+                                f'<div class="law-content" style="margin-bottom:20px;white-space:normal;">'
+                                f'{tags_html}'
+                                f'<div style="white-space:pre-wrap;line-height:1.8;">{content_text}</div>'
+                                f'</div>'
                             )
-
+                            st.markdown(html_str, unsafe_allow_html=True)
+                            
                 st.divider()
-
+                
                 if generate_pdf_clicked:
                     buffer = BytesIO()
                     pdf = SimpleDocTemplate(buffer, pagesize=A4)
-
                     styles = getSampleStyleSheet()
+                    
                     title_style = ParagraphStyle(
                         "ChineseTitle", parent=styles["Title"], fontName="STSong-Light"
                     )
@@ -853,32 +906,37 @@ else:
                     body_style = ParagraphStyle(
                         "ChineseBody", parent=styles["BodyText"], fontName="STSong-Light", leading=18
                     )
-
+                    
                     elements = []
                     elements.append(Paragraph("企业合规自查法条清单", title_style))
                     elements.append(Spacer(1, 12))
-
+                    
                     for law in st.session_state.selected_laws:
                         elements.append(Paragraph(law["law_title"], heading_style))
-                        safe_content = law["content"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+                        clean_pdf_text = re.sub(r'(?im)^\s*svg\s*$', '', law["content"])
+                        safe_content = clean_pdf_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
                         elements.append(Paragraph(safe_content, body_style))
                         elements.append(Spacer(1, 12))
-
+                        
                     elements.append(Paragraph("提示：本清单用于企业合规检索与参考，不构成法律意见。", body_style))
                     pdf.build(elements)
                     buffer.seek(0)
-
-                    st.download_button(
-                        "⬇️ 下载PDF",
-                        data=buffer,
-                        file_name="企业合规自查法条清单.pdf",
-                        mime="application/pdf"
-                    )
-
+                    
+                    # 【核心修改2】将下载按钮注入到上方的占位容器中
+                    with pdf_download_container:
+                        st.download_button(
+                            "⬇️ 下载PDF",
+                            data=buffer,
+                            file_name="企业合规自查法条清单.pdf",
+                            mime="application/pdf"
+                        )
+                        
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
                 st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
+                
                 all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
+                
                 timeline_phases = [
                     {"title": "Phase 1：出境前准备与评估 (Data Mapping & Assessment)", 
                      "desc": "完成数据资产梳理、分类分级，执行数据出境安全评估、标准合同签署或个人信息保护认证。"},
@@ -887,11 +945,14 @@ else:
                     {"title": "Phase 3：出境后合规监督 (Post-transfer Monitoring & Audit)", 
                      "desc": "建立持续合规审计机制、安全事件应急响应与境外接收方权益保障监督。"}
                 ]
+                
                 phase_tabs = st.tabs([f"📌 {p['title'].split(' ')[0]} {p['title'].split(' ')[1]}" for p in timeline_phases])
+                
                 for i, p_info in enumerate(timeline_phases):
                     with phase_tabs[i]:
                         st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{p_info['title']}</h4>", unsafe_allow_html=True)
                         st.info(p_info['desc'])
+                        
                         if i == 0:
                             phase_df = all_laws_df[all_laws_df["category"].str.contains("分类|出境|安全评估|标准合同|认证", na=False) | all_laws_df["law_title"].str.contains("评估|办法|条例|规定", na=False)]
                         elif i == 1:
@@ -900,6 +961,7 @@ else:
                         else:
                             phase_df = all_laws_df[all_laws_df["content"].str.contains("监督|审计|评估|报告|应急|处置", na=False)]
                             if phase_df.empty: phase_df = all_laws_df.iloc[7:]
+                            
                         st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
                         for _, row in phase_df.iterrows():
                             region_n = row["region"]
@@ -907,16 +969,22 @@ else:
                             sc0 = row["sub_cat_0"]
                             content = row["content"]
                             tag_str = f"[{region_n}] {sc0}" if sc0 else f"[{region_n}]"
-                            timeline_card_html = f"""
-                            <div class="timeline-item">
-                                <div class="timeline-node"></div>
-                                <div class="timeline-card hard-shadow-hover">
-                                    <span class="law-tag">{tag_str}</span>
-                                    <h4 style="margin-top: 5px; color: #111111; font-family: Playfair Display, serif; border-bottom: none;">{law_t}</h4>
-                                    <div class="law-content" style="margin-bottom: 0; white-space: pre-wrap;">{content}</div>
-                                </div>
-                            </div>
-                            """
+                            
+                            # 同样适用防打断规则
+                            content_safe = content
+                            content_safe = re.sub(r'(?im)^\s*svg\s*$', '', content_safe)
+                            content_safe = content_safe.replace('\n', '<br>')
+                            
+                            timeline_card_html = (
+                                f'<div class="timeline-item">'
+                                f'<div class="timeline-node"></div>'
+                                f'<div class="timeline-card hard-shadow-hover">'
+                                f'<span class="law-tag">{tag_str}</span>'
+                                f'<h4 style="margin-top: 5px; color: #111111; font-family: Playfair Display, serif; border-bottom: none;">{law_t}</h4>'
+                                f'<div class="law-content" style="margin-bottom: 0; white-space: pre-wrap;">{content_safe}</div>'
+                                f'</div>'
+                                f'</div>'
+                            )
                             st.markdown(timeline_card_html, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
             conn.close()
