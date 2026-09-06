@@ -549,7 +549,8 @@ else:
             <div class="sharp-card" style="border-top: 4px solid #111;">
                 <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>智能网联汽车跨国数据合规平台 - 首页</h1>
                 <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
-                    欢迎来到首页。此处保持空白，后续可根据需要自由添加内容。
+                    智能网联汽车车外实景影像数据跨境流动的双向合规路径研究——以中国与欧盟为例<br>
+教育部大学生创新训练计划项目 · 聚焦中欧数据跨境规则冲突与合规路径
                 </p>
             </div>
             """, 
@@ -557,16 +558,13 @@ else:
         )
         st.markdown(
             """
-            <div style="padding: 0 4px; margin-top: 10px; margin-bottom: 25px;">
-                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.8; color: #333333; margin-bottom: 0;'>
-                    项目概况：<br><br>
-                    本项目聚焦智能网联汽车出海欧盟时，车外实景影像数据跨境流动的双向合规困境。中国《汽车数据出境安全指引》与欧盟GDPR在数据定性、出境路径及执法机制上存在显著冲突，导致企业面临高昂合规成本及法律风险。研究采用功能主义比较法，通过规范分析、企业访谈及案例实证，揭示中欧规制差异，并构建分场景双向合规操作框架及数字化风险识别平台。
-                </p>
+            <div style="font-family: Lora, serif; font-size: 1.1rem; line-height: 1.8; color: #333333; margin: 10px 0 30px 0;">
+                <b>项目概况：</b><br>
+                本项目聚焦智能网联汽车出海欧盟时，车外实景影像数据跨境流动的双向合规困境。中国《汽车数据出境安全指引》与欧盟GDPR在数据定性、出境路径及执法机制上存在显著冲突，导致企业面临高昂合规成本及法律风险。研究采用功能主义比较法，通过规范分析、企业访谈及案例实证，揭示中欧规制差异，并构建分场景双向合规操作框架及数字化风险识别平台。
             </div>
             """,
             unsafe_allow_html=True
         )
-
     elif st.session_state.nav_choice == "关于我们":
         st.markdown(
             """
@@ -580,25 +578,13 @@ else:
         )
         st.markdown(
             """
-            <div class="sharp-card" style="border-top: 4px solid #111;">
-                <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>关于我们</h1>
-                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.6; color: #333333; margin-bottom: 0;'>
-                </p>
-            </div>
+            <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>关于我们</h1>
+            <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.8; color: #333333; margin: 10px 0 30px 0;'>
+                汽车数据观察室，是由华东政法大学国际金融法律学院、法律学院、经济法学院、传播学院、商学院五大学院本科生组建的跨学科研究团队。我们聚焦中国智能网联汽车出海欧盟过程中，车外实景影像数据跨境流动面临的中欧法律规制冲突，通过比较法研究、案例实证与企业深度访谈，探索兼顾数据安全与产业发展的双向合规路径，为中国汽车产业的全球化进程提供学术支撑与实践参考。
+            </p>
             """, 
             unsafe_allow_html=True
         )
-        st.markdown(
-            """
-            <div style="padding: 0 4px; margin-top: 10px; margin-bottom: 25px;">
-                <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.8; color: #333333; margin-bottom: 0;'>
-                    汽车数据观察室，是由华东政法大学国际金融法律学院、法律学院、经济法学院、传播学院、商学院五大学院本科生组建的跨学科研究团队。我们聚焦中国智能网联汽车出海欧盟过程中，车外实景影像数据跨境流动面临的中欧法律规制冲突，通过比较法研究、案例实证与企业深度访谈，探索兼顾数据安全与产业发展的双向合规路径，为中国汽车产业的全球化进程提供学术支撑与实践参考。
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
     elif st.session_state.nav_choice == "案例库":
         st.markdown(
             """
