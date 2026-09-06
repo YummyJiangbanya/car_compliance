@@ -286,7 +286,6 @@ NEWSPRINT_CSS = """
 </style>
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
-
 DB_FILE = "car_compliance.db"
 
 # ==================== 3. 核心处理与数据库函数 ====================
@@ -306,6 +305,20 @@ def extract_sort_key(text):
         try: return int(match_en.group(1))
         except ValueError: pass
     return 999
+
+def extract_article_number(text):
+    """提取法条文本中的条文编号（如第xx条、Article xx等）"""
+    if not text:
+        return ""
+    # 优先匹配中文“第xx条”
+    match_cn = re.search(r"第[零一二三四五六七八九十百千0-9]+条", text)
+    if match_cn:
+        return match_cn.group(0)
+    # 匹配英文“Article xx”、“Art. xx”、“Recital xx”、“Section xx”等
+    match_en = re.search(r"(Article\s+\d+|Art\.\s*\d+|Recital\s+\d+|Section\s+\d+)", text, re.IGNORECASE)
+    if match_en:
+        return match_en.group(0)
+    return ""
 
 def get_clean_cell_text(cell):
     if cell.value is None or str(cell.value).strip() == "nan":
@@ -353,7 +366,6 @@ def init_database_from_excel():
                 break
     if not excel_path or not os.path.exists(excel_path):
         return False
-
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -369,29 +381,24 @@ def init_database_from_excel():
         )
     """)
     cursor.execute("DELETE FROM compliance_laws")
-
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
     df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
-
     categories_row = df_raw.iloc[0]
     titles_row = df_raw.iloc[1]
     
     col0_raw = df_raw.iloc[:, 0] if len(df_raw.columns) > 0 else pd.Series([""] * len(df_raw))
     col1_raw = df_raw.iloc[:, 1] if len(df_raw.columns) > 1 else pd.Series([""] * len(df_raw))
     col2_raw = df_raw.iloc[:, 2] if len(df_raw.columns) > 2 else pd.Series([""] * len(df_raw))
-
     laws_dict = {}
     laws_order = []
     all_law_columns = []
-
     for col_idx in range(3, len(df_raw.columns)):
         cat_raw = str(categories_row.iloc[col_idx]).strip()
         law_title = str(titles_row.iloc[col_idx]).strip()
         if not law_title or law_title == "nan":
             continue
-
         if "-" in cat_raw:
             parts = cat_raw.split("-", 1)
             region = parts[0].strip()
@@ -417,9 +424,7 @@ def init_database_from_excel():
             else:
                 region = "中国"
                 category = cat_raw if cat_raw and cat_raw != "nan" else "通用模块"
-
         all_law_columns.append((region, category, law_title))
-
         for row_idx in range(2, len(df_raw)):
             cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
             content_str = get_clean_cell_text(cell_obj)
@@ -447,7 +452,6 @@ def init_database_from_excel():
                 
                 if scenario_text and scenario_text not in laws_dict[key]["scenarios"]:
                     laws_dict[key]["scenarios"].append(scenario_text)
-
     processed_laws = set()
     for key in laws_order:
         item = laws_dict[key]
@@ -457,7 +461,6 @@ def init_database_from_excel():
             (item["region"], item["category"], item["law_title"], combined_scenarios, "", item["content"], item["sort_order"])
         )
         processed_laws.add((item["region"], item["category"], item["law_title"]))
-
     for (r, c, lt) in set(all_law_columns):
         if (r, c, lt) not in processed_laws:
             cursor.execute(
@@ -581,7 +584,6 @@ if st.session_state.show_terms_page:
             st.error(f"加载术语表异常: {e}")
     else:
         st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
-
 else:
     if st.session_state.nav_choice == "首页":
         st.markdown(
@@ -792,11 +794,12 @@ else:
                     if st.session_state.selected_laws:
                         st.markdown("**自动生成引用格式：**")
                         for law in st.session_state.selected_laws:
-                            st.write(law["law_title"])
+                            art_num = extract_article_number(law.get("content", ""))
+                            citation_title = f"{law['law_title']} {art_num}".strip() if art_num else law["law_title"]
+                            st.write(citation_title)
                 with export_col2:
                     st.markdown("### 操作")
                     generate_pdf_clicked = st.button("📄 生成所选法条 PDF")
-                    # 【核心修改2】增加一个占位容器存放下载按钮，确保它在“生成PDF”按钮正下方
                     pdf_download_container = st.container()
                     
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
@@ -868,7 +871,6 @@ else:
                                 tags_str = "".join([f'<span class="law-tag">💡 {t}</span>' for t in tags])
                                 tags_html = f'<div style="margin-bottom:10px;">{tags_str}</div>'
                                 
-                            # 【核心修改1】彻底防范换行与 svg 字符打断 HTML 解析
                             content_text = law_text
                             content_text = re.sub(r'(?im)^\s*svg\s*$', '', content_text)
                             
@@ -912,7 +914,9 @@ else:
                     elements.append(Spacer(1, 12))
                     
                     for law in st.session_state.selected_laws:
-                        elements.append(Paragraph(law["law_title"], heading_style))
+                        art_num = extract_article_number(law.get("content", ""))
+                        citation_title = f"{law['law_title']} {art_num}".strip() if art_num else law["law_title"]
+                        elements.append(Paragraph(citation_title, heading_style))
                         clean_pdf_text = re.sub(r'(?im)^\s*svg\s*$', '', law["content"])
                         safe_content = clean_pdf_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
                         elements.append(Paragraph(safe_content, body_style))
@@ -922,7 +926,6 @@ else:
                     pdf.build(elements)
                     buffer.seek(0)
                     
-                    # 【核心修改2】将下载按钮注入到上方的占位容器中
                     with pdf_download_container:
                         st.download_button(
                             "⬇️ 下载PDF",
