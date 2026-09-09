@@ -22,7 +22,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 初始化 Session State
+# 初始化 Session State (账号记忆与登录状态)
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_identity" not in st.session_state:
@@ -46,21 +46,21 @@ if "selected_laws" not in st.session_state:
 if "highlighted_case" not in st.session_state:
     st.session_state.highlighted_case = None
 
-# 模拟用户数据库 (简易字典)
+# 模拟用户数据库 (支持注册记忆)
 if "user_db" not in st.session_state:
     st.session_state.user_db = {
         "admin": "123456",
         "13800138000": "123456"
     }
 
-# ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格) ====================
+# ==================== 2. 全局 CSS 样式与 UI 设计系统 (白底黑线风格) ====================
 NEWSPRINT_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
     
     :root {
         --bg-base: #F9F9F7;
-        --bg-surface: #F9F9F7;
+        --bg-surface: #FFFFFF;
         --text-primary: #111111;
         --text-muted: #666666;
         --border-color: #111111;
@@ -96,9 +96,9 @@ NEWSPRINT_CSS = """
         margin-bottom: 20px;
     }
     
-    /* 绝对零圆角与硬阴影悬浮效果 */
+    /* 绝对零圆角卡片 */
     .sharp-card, div[data-testid="stExpander"], .term-card, .timeline-card, .header-card {
-        background-color: #F9F9F7 !important;
+        background-color: #FFFFFF !important;
         border: 1px solid #111111 !important;
         border-radius: 0px !important;
         box-shadow: none !important;
@@ -113,18 +113,19 @@ NEWSPRINT_CSS = """
     
     /* 案例卡片高亮选中效果 */
     .case-card-selected {
-        border: 3px solid #CC0000 !important;
-        box-shadow: 6px 6px 0px 0px #111111 !important;
-        background-color: #FFFDF9 !important;
+        border: 2px solid #CC0000 !important;
+        box-shadow: 4px 4px 0px 0px #CC0000 !important;
+        background-color: #FFFFFF !important;
     }
     
-    /* Expander 样式调整 */
-    div[data-testid="stExpander"] { padding: 0 !important; }
+    /* Expander 折叠面板样式：全部改为白底黑框 */
+    div[data-testid="stExpander"] { padding: 0 !important; background-color: #FFFFFF !important; }
     div[data-testid="stExpander"] summary {
         padding: 16px 20px;
-        background-color: #F9F9F7;
-        border: 1px solid #111111;
+        background-color: #FFFFFF !important;
+        border: 1px solid #111111 !important;
         border-radius: 0px !important;
+        color: #111111 !important;
     }
     div[data-testid="stExpander"] summary span[data-testid="stExpanderToggleIcon"] {
         font-size: 0px !important;
@@ -133,8 +134,8 @@ NEWSPRINT_CSS = """
         display: none !important;
     }
     div[data-testid="stExpander"] summary:hover {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
+        background-color: #F0F0EB !important;
+        color: #111111 !important;
     }
     div[data-testid="stExpander"] summary p {
         font-family: 'Playfair Display', serif !important;
@@ -142,20 +143,17 @@ NEWSPRINT_CSS = """
         color: #111111 !important;
         margin: 0 !important;
     }
-    div[data-testid="stExpander"] summary:hover p {
-        color: #F9F9F7 !important;
-    }
     
     /* 隐藏默认侧边栏 */
     [data-testid="stSidebar"] {
         display: none !important;
     }
     
-    /* 顶端导航链接 */
+    /* 顶端导航链接 (白底黑框) */
     .nav-tabs-container {
         display: flex;
         border: 1px solid #111111;
-        background-color: #F9F9F7;
+        background-color: #FFFFFF;
         margin-bottom: 25px;
     }
     .nav-tab-item {
@@ -167,9 +165,9 @@ NEWSPRINT_CSS = """
         border-right: none;
     }
     .nav-tab-item button {
-        background-color: transparent !important;
+        background-color: #FFFFFF !important;
         color: #111111 !important;
-        border: none !important;
+        border: 1px solid #111111 !important;
         border-radius: 0px !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
@@ -184,18 +182,20 @@ NEWSPRINT_CSS = """
         transition: all 100ms ease !important;
     }
     .nav-tab-item button:hover {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
+        background-color: #F0F0EB !important;
+        color: #111111 !important;
     }
     .nav-tab-active button {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
+        background-color: #FFFFFF !important;
+        color: #CC0000 !important;
+        border: 2px solid #111111 !important;
+        font-weight: 900 !important;
     }
     
-    /* 目录黑框列表紧凑样式 */
+    /* 目录列表样式 (白底黑框) */
     .case-dir-container {
         border: 1px solid #111111;
-        background-color: #F9F9F7;
+        background-color: #FFFFFF;
         margin-bottom: 25px;
     }
     .case-dir-item {
@@ -205,7 +205,7 @@ NEWSPRINT_CSS = """
         border-bottom: none;
     }
     .case-dir-item button {
-        background-color: transparent !important;
+        background-color: #FFFFFF !important;
         color: #111111 !important;
         border: none !important;
         border-radius: 0px !important;
@@ -220,12 +220,13 @@ NEWSPRINT_CSS = """
         transition: all 100ms ease !important;
     }
     .case-dir-item button:hover {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
+        background-color: #F0F0EB !important;
+        color: #111111 !important;
     }
+
     /* 术语按钮样式 */
     .inline-term-btn button {
-        background-color: #F9F9F7 !important;
+        background-color: #FFFFFF !important;
         color: #111111 !important;
         border: 1px solid #111111 !important;
         border-radius: 0px !important;
@@ -236,21 +237,19 @@ NEWSPRINT_CSS = """
         letter-spacing: 0.05em;
         box-shadow: none !important;
         padding: 8px 16px !important;
-        transition: background-color 100ms ease, color 100ms ease !important;
         white-space: nowrap;
     }
     .inline-term-btn button:hover {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
+        background-color: #F0F0EB !important;
+        color: #111111 !important;
         border: 1px solid #111111 !important;
-        box-shadow: 2px 2px 0px 0px #111111 !important;
     }
     
-    /* 报纸风格标签 */
+    /* 报纸风格标签 (白底黑边) */
     .law-tag {
         display: inline-block;
-        background-color: #111111;
-        color: #F9F9F7;
+        background-color: #FFFFFF;
+        color: #111111;
         padding: 4px 10px;
         border-radius: 0px !important;
         font-family: 'JetBrains Mono', monospace;
@@ -260,11 +259,12 @@ NEWSPRINT_CSS = """
         margin-bottom: 4px;
         margin-right: 6px;
         border: 1px solid #111111;
+        font-weight: bold;
     }
     
     /* 条款排版容器 */
     .law-content {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         border: 1px solid #111111;
         border-left: 6px solid #111111 !important;
         padding: 20px;
@@ -278,6 +278,7 @@ NEWSPRINT_CSS = """
     /* 术语卡片 */
     .term-card {
         border-left: 6px solid var(--accent-red) !important;
+        background-color: #FFFFFF !important;
     }
     .term-source {
         font-family: 'JetBrains Mono', monospace;
@@ -305,15 +306,14 @@ NEWSPRINT_CSS = """
         width: 12px;
         height: 12px;
         border-radius: 0px !important;
-        background-color: #F9F9F7;
+        background-color: #FFFFFF;
         border: 3px solid #111111;
     }
     
-    /* 通用输入框设计 (明确设置高对比度文本及占位符颜色) */
-    div[data-testid="stTextInput"] input {
+    /* 输入框样式 (白底黑边) */
+    div[data-testid="stTextInput"] input, div[data-testid="stSelectbox"] div[data-baseweb="select"] {
         background-color: #FFFFFF !important;
         border: 1px solid #111111 !important;
-        border-bottom: 2px solid #111111 !important;
         color: #111111 !important;
         font-family: 'JetBrains Mono', monospace !important;
         border-radius: 0px !important;
@@ -324,10 +324,11 @@ NEWSPRINT_CSS = """
         opacity: 1 !important;
     }
     div[data-testid="stTextInput"] input:focus {
-        background-color: #F0F0EB !important;
+        background-color: #FFFFFF !important;
         color: #000000 !important;
+        border: 2px solid #111111 !important;
     }
-    div[data-testid="stTextInput"] label {
+    div[data-testid="stTextInput"] label, div[data-testid="stSelectbox"] label {
         font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
         text-transform: uppercase;
@@ -335,19 +336,23 @@ NEWSPRINT_CSS = """
         color: #111111 !important;
     }
     
-    /* Tabs 选项卡样式优化 (解决纯黑背景不可见问题) */
+    /* Tabs 选项卡样式修改：彻底取消黑色，改为白底黑框 */
     button[data-baseweb="tab"] {
-        background-color: transparent !important;
+        background-color: #FFFFFF !important;
         color: #111111 !important;
+        border: 1px solid #111111 !important;
         border-radius: 0px !important;
         font-weight: 600 !important;
+        margin-right: 4px !important;
     }
     button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
+        background-color: #FFFFFF !important;
+        color: #CC0000 !important;
+        border: 2px solid #111111 !important;
+        font-weight: bold !important;
     }
     
-    /* 按钮通用重置为报纸硬朗风格 */
+    /* 按钮通用重置：白底黑边框黑字 */
     div.stButton > button {
         border-radius: 0px !important;
         border: 1px solid #111111 !important;
@@ -355,18 +360,19 @@ NEWSPRINT_CSS = """
         font-weight: 700 !important;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
+        background-color: #FFFFFF !important;
+        color: #111111 !important;
         box-shadow: none !important;
         transition: all 100ms ease !important;
     }
     div.stButton > button:hover {
-        background-color: #333333 !important;
-        color: #FFFFFF !important;
+        background-color: #F0F0EB !important;
+        color: #111111 !important;
+        border: 1px solid #111111 !important;
         box-shadow: 2px 2px 0px 0px #111111 !important;
     }
     
-    /* “还没有账号？”悬浮变色效果 */
+    /* “还没有账号？”文本样式 */
     .register-hover-text {
         font-size: 0.85rem;
         line-height: 2.2;
@@ -393,7 +399,7 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         letter-spacing: 0.1em;
     }
-    /* 顶部标题栏悬浮样式 */
+    /* 顶部标题栏样式 */
     .top-header-bar {
         display: flex;
         justify-content: space-between;
@@ -413,7 +419,7 @@ NEWSPRINT_CSS = """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
 DB_FILE = "car_compliance.db"
 
-# ==================== 3. 登录与注册模块 ====================
+# ==================== 3. 登录与注册模块 (修复记忆逻辑) ====================
 def render_auth_page():
     # 顶部品牌标识
     st.markdown(
@@ -435,7 +441,7 @@ def render_auth_page():
     with col2:
         st.markdown(
             """
-            <div class="sharp-card" style="border-top: 4px solid #111111; padding: 30px;">
+            <div class="sharp-card" style="border-top: 4px solid #111111; padding: 30px; background-color: #FFFFFF;">
             """,
             unsafe_allow_html=True
         )
@@ -521,10 +527,13 @@ def render_auth_page():
                 elif reg_user in st.session_state.user_db:
                     st.error("该账号已被注册")
                 else:
+                    # 记住账号与密码，并直接登录
                     st.session_state.user_db[reg_user] = reg_pwd
                     st.session_state.authenticated = True
                     st.session_state.user_identity = reg_user
                     st.session_state.auth_mode = "login"
+                    st.success("注册成功！正在登录...")
+                    time.sleep(0.5)
                     st.rerun()
             
             st.divider()
@@ -745,6 +754,7 @@ with top_bar_right:
             st.session_state.authenticated = False
             st.session_state.user_identity = None
             st.rerun()
+
 st.write("")
 nav_items = [
     ("首页", "首页"),
@@ -1130,7 +1140,7 @@ else:
                 module_df = pd.read_sql(query, conn, params=tuple(params))
                 
                 if keyword:
-                    st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
+                    st.markdown(f"**检索结果**：包含 <span style='border:1px solid #111; color:#111; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
                 else:
                     st.markdown(f"**检索条件**：辖区 [{selected_region}] | 模块 [{selected_category}] -> 共计检索到 **{len(module_df)}** 条内容")
                     
@@ -1183,7 +1193,7 @@ else:
                             if keyword:
                                 content_text = content_text.replace(
                                     keyword,
-                                    f"<span style='background-color:#111;color:#F9F9F7;font-weight:bold;'>{keyword}</span>"
+                                    f"<span style='border:1px solid #111;color:#CC0000;font-weight:bold;'>{keyword}</span>"
                                 )
                                 
                             content_text = content_text.replace('\n', '<br>')
