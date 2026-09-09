@@ -223,7 +223,6 @@ NEWSPRINT_CSS = """
         background-color: #F0F0EB !important;
         color: #111111 !important;
     }
-
     /* 术语按钮样式 */
     .inline-term-btn button {
         background-color: #FFFFFF !important;
@@ -419,7 +418,12 @@ NEWSPRINT_CSS = """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
 DB_FILE = "car_compliance.db"
 
-# ==================== 3. 登录与注册模块 (修复记忆逻辑) ====================
+# 密码校验逻辑：允许大小写字母、数字，以及仅限 “_”、“@”、“*” 三种特殊字符
+def is_valid_password(pwd):
+    pattern = r"^[A-Za-z0-9_@*]+$"
+    return bool(re.match(pattern, pwd))
+
+# ==================== 3. 登录与注册模块 (包含大小写与特殊符号识别) ====================
 def render_auth_page():
     # 顶部品牌标识
     st.markdown(
@@ -465,7 +469,7 @@ def render_auth_page():
                         st.session_state.user_identity = acc_input
                         st.rerun()
                     else:
-                        st.error("账号或密码错误")
+                        st.error("账号或密码错误（请注意区分字母大小写）")
             
             with tab_phone:
                 st.write("")
@@ -516,12 +520,14 @@ def render_auth_page():
         else:
             st.markdown("<h2 style='text-align: center; border-bottom: 1px solid #111; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.8rem;'>注册账号</h2>", unsafe_allow_html=True)
             reg_user = st.text_input("设置用户名 / 手机号", key="reg_user_input", placeholder="请输入用户名或手机号...")
-            reg_pwd = st.text_input("设置密码", type="password", key="reg_pwd_input", placeholder="请输入密码...")
+            reg_pwd = st.text_input("设置密码 (仅支持“_”“@”“*”三种特殊字符)", type="password", key="reg_pwd_input", placeholder="请输入包含大小写、数字及允许字符的密码...")
             reg_pwd_confirm = st.text_input("确认密码", type="password", key="reg_pwd_confirm_input", placeholder="请再次输入密码...")
             st.write("")
             if st.button("完成注册并登录", key="btn_register_submit", use_container_width=True):
                 if not reg_user or not reg_pwd:
                     st.error("用户名和密码不能为空")
+                elif not is_valid_password(reg_pwd):
+                    st.error("密码包含不支持的字符！仅支持大小写字母、数字及“_”“@”“*”三种特殊字符。")
                 elif reg_pwd != reg_pwd_confirm:
                     st.error("两次输入的密码不一致")
                 elif reg_user in st.session_state.user_db:
