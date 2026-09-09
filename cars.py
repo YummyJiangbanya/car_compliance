@@ -35,7 +35,6 @@ if "mock_code" not in st.session_state:
     st.session_state.mock_code = ""
 if "code_send_time" not in st.session_state:
     st.session_state.code_send_time = 0
-
 if "nav_choice" not in st.session_state:
     st.session_state.nav_choice = "首页"
 if "show_terms_page" not in st.session_state:
@@ -310,7 +309,7 @@ NEWSPRINT_CSS = """
         border: 3px solid #111111;
     }
     
-    /* 通用输入框设计 */
+    /* 通用输入框设计 (明确设置高对比度文本及占位符颜色) */
     div[data-testid="stTextInput"] input {
         background-color: #FFFFFF !important;
         border: 1px solid #111111 !important;
@@ -320,16 +319,34 @@ NEWSPRINT_CSS = """
         border-radius: 0px !important;
         box-shadow: none !important;
     }
+    div[data-testid="stTextInput"] input::placeholder {
+        color: #666666 !important;
+        opacity: 1 !important;
+    }
     div[data-testid="stTextInput"] input:focus {
         background-color: #F0F0EB !important;
+        color: #000000 !important;
     }
     div[data-testid="stTextInput"] label {
         font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
         text-transform: uppercase;
         font-size: 0.8rem;
+        color: #111111 !important;
     }
-
+    
+    /* Tabs 选项卡样式优化 (解决纯黑背景不可见问题) */
+    button[data-baseweb="tab"] {
+        background-color: transparent !important;
+        color: #111111 !important;
+        border-radius: 0px !important;
+        font-weight: 600 !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
+    }
+    
     /* 按钮通用重置为报纸硬朗风格 */
     div.stButton > button {
         border-radius: 0px !important;
@@ -349,6 +366,20 @@ NEWSPRINT_CSS = """
         box-shadow: 2px 2px 0px 0px #111111 !important;
     }
     
+    /* “还没有账号？”悬浮变色效果 */
+    .register-hover-text {
+        font-size: 0.85rem;
+        line-height: 2.2;
+        color: #111111;
+        cursor: pointer;
+        transition: color 200ms ease, font-weight 200ms ease;
+    }
+    .register-hover-text:hover {
+        color: #CC0000 !important;
+        font-weight: 700;
+        text-decoration: underline;
+    }
+    
     /* 报头元数据 */
     .newsprint-masthead {
         border-top: 3px solid #111111;
@@ -362,7 +393,6 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         letter-spacing: 0.1em;
     }
-
     /* 顶部标题栏悬浮样式 */
     .top-header-bar {
         display: flex;
@@ -472,17 +502,16 @@ def render_auth_page():
             st.divider()
             switch_col1, switch_col2 = st.columns([1.2, 1])
             with switch_col1:
-                st.markdown("<p style='font-size: 0.85rem; line-height: 2.2;'>还没有账号？</p>", unsafe_allow_html=True)
+                st.markdown("<p class='register-hover-text'>还没有账号？</p>", unsafe_allow_html=True)
             with switch_col2:
                 if st.button("注册账号", key="goto_register_btn", use_container_width=True):
                     st.session_state.auth_mode = "register"
                     st.rerun()
-
         else:
             st.markdown("<h2 style='text-align: center; border-bottom: 1px solid #111; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.8rem;'>注册账号</h2>", unsafe_allow_html=True)
-            reg_user = st.text_input("设置用户名 / 手机号", key="reg_user_input")
-            reg_pwd = st.text_input("设置密码", type="password", key="reg_pwd_input")
-            reg_pwd_confirm = st.text_input("确认密码", type="password", key="reg_pwd_confirm_input")
+            reg_user = st.text_input("设置用户名 / 手机号", key="reg_user_input", placeholder="请输入用户名或手机号...")
+            reg_pwd = st.text_input("设置密码", type="password", key="reg_pwd_input", placeholder="请输入密码...")
+            reg_pwd_confirm = st.text_input("确认密码", type="password", key="reg_pwd_confirm_input", placeholder="请再次输入密码...")
             st.write("")
             if st.button("完成注册并登录", key="btn_register_submit", use_container_width=True):
                 if not reg_user or not reg_pwd:
@@ -502,7 +531,6 @@ def render_auth_page():
             if st.button("返回登录界面", key="goto_login_btn", use_container_width=True):
                 st.session_state.auth_mode = "login"
                 st.rerun()
-
         st.markdown("</div>", unsafe_allow_html=True)
 
 # 未通过认证则拦截并渲染登录页
@@ -717,9 +745,7 @@ with top_bar_right:
             st.session_state.authenticated = False
             st.session_state.user_identity = None
             st.rerun()
-
 st.write("")
-
 nav_items = [
     ("首页", "首页"),
     ("法律库", "法律库"),
