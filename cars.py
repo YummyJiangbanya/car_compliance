@@ -31,6 +31,8 @@ if "selected_case" not in st.session_state:
     st.session_state.selected_case = None
 if "selected_laws" not in st.session_state:
     st.session_state.selected_laws = []
+if "highlighted_case" not in st.session_state:
+    st.session_state.highlighted_case = None
 
 # ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格) ====================
 NEWSPRINT_CSS = """
@@ -88,6 +90,13 @@ NEWSPRINT_CSS = """
     .hard-shadow-hover:hover {
         box-shadow: 4px 4px 0px 0px #111111 !important;
         transform: translate(-2px, -2px);
+    }
+    
+    /* 案例卡片高亮选中效果 */
+    .case-card-selected {
+        border: 3px solid #CC0000 !important;
+        box-shadow: 6px 6px 0px 0px #111111 !important;
+        background-color: #FFFDF9 !important;
     }
     
     /* Expander 样式调整 */
@@ -319,6 +328,21 @@ def extract_article_number(text):
     if match_en:
         return match_en.group(0)
     return ""
+
+def parse_fine_amount(text):
+    """提取“1、罚款：”背后的数字大小用于排序"""
+    if not text or text == "（暂无内容）":
+        return -1.0
+    match = re.search(r"1[、:]\s*罚款[：:]\s*([0-9.]+)\s*([万亿]*)\s*(欧元|人民币|美元|英镑)?", text)
+    if match:
+        num = float(match.group(1))
+        unit = match.group(2)
+        if unit == '亿':
+            num *= 100000000
+        elif unit == '万':
+            num *= 10000
+        return num
+    return -1.0
 
 def get_clean_cell_text(cell):
     if cell.value is None or str(cell.value).strip() == "nan":
@@ -666,10 +690,16 @@ else:
                         sec_content = str(df_case.iloc[row_idx, col_idx]).strip()
                         if sec_title and sec_title != "nan":
                             sections[sec_title] = sec_content if sec_content != "nan" else "（暂无内容）"
+                    
+                    fine_val = parse_fine_amount(sections.get("处罚结果", ""))
                     cases_data.append({
                         "case_name": case_name,
-                        "sections": sections
+                        "sections": sections,
+                        "fine_amount": fine_val
                     })
+                
+                # 根据第六行罚款金额从高到低排序，没有数字的排序靠后
+                cases_data.sort(key=lambda x: x["fine_amount"], reverse=True)
                     
                 if st.session_state.selected_case is None:
                     st.markdown(
@@ -684,16 +714,49 @@ else:
                         unsafe_allow_html=True
                     )
                     st.write("")
+                    
+                    # 交互式目录模块
+                    st.markdown("### 📋 案例快速检索目录（点击定位）")
+                    st.markdown("<p style='font-size: 0.85rem; color: #666;'>点击下方按钮可自动定位至对应案例并进行框选高亮：</p>", unsafe_allow_html=True)
+                    dir_cols = st.columns(3)
                     for i, c_item in enumerate(cases_data):
                         c_name = c_item["case_name"]
+                        case_anchor_id = f"case_card_{i}"
+                        with dir_cols[i % 3]:
+                            if st.button(f"📍 {c_name}", key=f"dir_btn_{i}", use_container_width=True):
+                                st.session_state.highlighted_case = c_name
+                                js_code = f"""
+                                <script>
+                                    var element = parent.document.getElementById('{case_anchor_id}');
+                                    if(element) {{
+                                        element.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                                    }}
+                                </script>
+                                """
+                                st.components.v1.html(js_code, height=0, width=0)
+                    
+                    st.divider()
+
+                    for i, c_item in enumerate(cases_data):
+                        c_name = c_item["case_name"]
+                        c_region = c_item["sections"].get("地域", "（暂无）")
+                        c_info = c_item["sections"].get("案件基本信息", "每起案例从六个角度拆解：案件背景、事实梳理、GDPR或国内法核心条款、监管逻辑、处罚裁决，以及对出海的启示。")
+                        
+                        is_highlighted = (st.session_state.highlighted_case == c_name)
+                        card_class = "case-card-selected" if is_highlighted else "hard-shadow-hover"
+                        case_anchor_id = f"case_card_{i}"
+                        
                         st.markdown(
                             f"""
-                            <div class="sharp-card hard-shadow-hover" style="border-left: 6px solid #111; padding: 20px 24px; margin-bottom: 16px;">
-                                <h3 style="margin-top: 0; margin-bottom: 10px; font-family: Playfair Display, serif; font-size: 1.5rem; border-bottom: none;">
-                                    ⚖️ {c_name}
-                                </h3>
-                                <p style="font-family: Lora, serif; color: #666; margin-bottom: 15px; font-size: 0.95rem;">
-                                    每起案例从六个角度拆解：案件背景、事实梳理、GDPR或国内法核心条款、监管逻辑、处罚裁决，以及对出海的启示。
+                            <div id="{case_anchor_id}" class="sharp-card {card_class}" style="border-left: 6px solid #111; padding: 20px 24px; margin-bottom: 16px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h3 style="margin-top: 0; margin-bottom: 10px; font-family: Playfair Display, serif; font-size: 1.5rem; border-bottom: none;">
+                                        ⚖️ {c_name}
+                                    </h3>
+                                    <span class="law-tag">🌍 {c_region}</span>
+                                </div>
+                                <p style="font-family: Lora, serif; color: #333; margin-bottom: 15px; font-size: 0.95rem; line-height: 1.6;">
+                                    <b>【案件基本信息】</b>：{c_info}
                                 </p>
                             </div>
                             """,
@@ -710,7 +773,7 @@ else:
                         
                     if active_case:
                         st.markdown(f"<h1 style='margin-top: 10px; font-size: 2.5rem;'>{active_case['case_name']}</h1>", unsafe_allow_html=True)
-                        sections_order = ["案件基本信息", "案件基本情况", "法律分析", "处罚结果", "合规启示", "相关资料"]
+                        sections_order = ["地域", "案件基本信息", "案件基本情况", "法律分析", "处罚结果", "合规启示", "相关资料"]
                         for sec_title in sections_order:
                             if sec_title in active_case["sections"]:
                                 content_val = active_case["sections"][sec_title]
