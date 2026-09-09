@@ -173,6 +173,22 @@ NEWSPRINT_CSS = """
         color: #F9F9F7 !important;
     }
     
+    /* 案例目录按钮专属黑色边框与硬朗风格 */
+    .case-dir-btn button {
+        border: 1px solid #111111 !important;
+        border-radius: 0px !important;
+        background-color: #F9F9F7 !important;
+        color: #111111 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        transition: all 150ms ease !important;
+    }
+    .case-dir-btn button:hover {
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
+        box-shadow: 2px 2px 0px 0px #111111 !important;
+    }
+    
     /* 术语按钮样式 */
     .inline-term-btn button {
         background-color: #F9F9F7 !important;
@@ -715,28 +731,28 @@ else:
                     )
                     st.write("")
                     
-                    # 交互式目录模块
+                    # 交互式目录模块 (更新为竖向排列及黑色边框适配样式)
                     st.markdown("### 📋 案例快速检索目录（点击定位）")
                     st.markdown("<p style='font-size: 0.85rem; color: #666;'>点击下方按钮可自动定位至对应案例并进行框选高亮：</p>", unsafe_allow_html=True)
-                    dir_cols = st.columns(3)
+                    
                     for i, c_item in enumerate(cases_data):
                         c_name = c_item["case_name"]
                         case_anchor_id = f"case_card_{i}"
-                        with dir_cols[i % 3]:
-                            if st.button(f"📍 {c_name}", key=f"dir_btn_{i}", use_container_width=True):
-                                st.session_state.highlighted_case = c_name
-                                js_code = f"""
-                                <script>
-                                    var element = parent.document.getElementById('{case_anchor_id}');
-                                    if(element) {{
-                                        element.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                                    }}
-                                </script>
-                                """
-                                st.components.v1.html(js_code, height=0, width=0)
+                        st.markdown('<div class="case-dir-btn" style="margin-bottom: 8px;">', unsafe_allow_html=True)
+                        if st.button(f"📍 {c_name}", key=f"dir_btn_{i}", use_container_width=True):
+                            st.session_state.highlighted_case = c_name
+                            js_code = f"""
+                            <script>
+                                var element = parent.document.getElementById('{case_anchor_id}');
+                                if(element) {{
+                                    element.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                                }}
+                            </script>
+                            """
+                            st.components.v1.html(js_code, height=0, width=0)
+                        st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.divider()
-
                     for i, c_item in enumerate(cases_data):
                         c_name = c_item["case_name"]
                         c_region = c_item["sections"].get("地域", "（暂无）")
