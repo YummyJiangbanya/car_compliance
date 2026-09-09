@@ -1,6 +1,7 @@
 import os
 import re
 import sqlite3
+import time
 import pandas as pd
 import openpyxl
 import streamlit as st
@@ -16,13 +17,25 @@ pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 
 # ==================== 1. 页面配置 ====================
 st.set_page_config(
-    page_title="智能网联汽车与跨国数据合规检索平台 | Newsprint Edition",
-    page_icon="📰", 
+    page_title="智能网联汽车跨国数据合规平台",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # 初始化 Session State
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "user_identity" not in st.session_state:
+    st.session_state.user_identity = None
+if "auth_mode" not in st.session_state:
+    st.session_state.auth_mode = "login"  # login / register
+if "login_type" not in st.session_state:
+    st.session_state.login_type = "account"  # account / phone
+if "mock_code" not in st.session_state:
+    st.session_state.mock_code = ""
+if "code_send_time" not in st.session_state:
+    st.session_state.code_send_time = 0
+
 if "nav_choice" not in st.session_state:
     st.session_state.nav_choice = "首页"
 if "show_terms_page" not in st.session_state:
@@ -33,6 +46,13 @@ if "selected_laws" not in st.session_state:
     st.session_state.selected_laws = []
 if "highlighted_case" not in st.session_state:
     st.session_state.highlighted_case = None
+
+# 模拟用户数据库 (简易字典)
+if "user_db" not in st.session_state:
+    st.session_state.user_db = {
+        "admin": "123456",
+        "13800138000": "123456"
+    }
 
 # ==================== 2. 全局 CSS 样式与 UI 设计系统 (Newsprint 风格) ====================
 NEWSPRINT_CSS = """
@@ -204,7 +224,6 @@ NEWSPRINT_CSS = """
         background-color: #111111 !important;
         color: #F9F9F7 !important;
     }
-
     /* 术语按钮样式 */
     .inline-term-btn button {
         background-color: #F9F9F7 !important;
@@ -291,10 +310,10 @@ NEWSPRINT_CSS = """
         border: 3px solid #111111;
     }
     
-    /* 输入框设计 */
+    /* 通用输入框设计 */
     div[data-testid="stTextInput"] input {
-        background-color: transparent !important;
-        border: none !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #111111 !important;
         border-bottom: 2px solid #111111 !important;
         color: #111111 !important;
         font-family: 'JetBrains Mono', monospace !important;
@@ -302,13 +321,32 @@ NEWSPRINT_CSS = """
         box-shadow: none !important;
     }
     div[data-testid="stTextInput"] input:focus {
-        background-color: #E5E5E0 !important;
+        background-color: #F0F0EB !important;
     }
     div[data-testid="stTextInput"] label {
         font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
         text-transform: uppercase;
         font-size: 0.8rem;
+    }
+
+    /* 按钮通用重置为报纸硬朗风格 */
+    div.stButton > button {
+        border-radius: 0px !important;
+        border: 1px solid #111111 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
+        box-shadow: none !important;
+        transition: all 100ms ease !important;
+    }
+    div.stButton > button:hover {
+        background-color: #333333 !important;
+        color: #FFFFFF !important;
+        box-shadow: 2px 2px 0px 0px #111111 !important;
     }
     
     /* 报头元数据 */
@@ -324,13 +362,155 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         letter-spacing: 0.1em;
     }
+
+    /* 顶部标题栏悬浮样式 */
+    .top-header-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #111111;
+        padding-bottom: 12px;
+        margin-bottom: 20px;
+    }
+    .top-header-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 1.4rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+    }
 </style>
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
-
 DB_FILE = "car_compliance.db"
 
-# ==================== 3. 核心处理与数据库函数 ====================
+# ==================== 3. 登录与注册模块 ====================
+def render_auth_page():
+    # 顶部品牌标识
+    st.markdown(
+        """
+        <div class="top-header-bar">
+            <div class="top-header-title">智能网联汽车跨国数据合规平台</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-transform: uppercase;">系统身份认证</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.write("")
+    st.write("")
+    
+    # 三列居中布局
+    col1, col2, col3 = st.columns([1, 1.3, 1])
+    
+    with col2:
+        st.markdown(
+            """
+            <div class="sharp-card" style="border-top: 4px solid #111111; padding: 30px;">
+            """,
+            unsafe_allow_html=True
+        )
+        
+        if st.session_state.auth_mode == "login":
+            st.markdown("<h2 style='text-align: center; border-bottom: 1px solid #111; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.8rem;'>用户登录</h2>", unsafe_allow_html=True)
+            
+            # 登录方式切换
+            tab_acc, tab_phone = st.tabs(["账号密码登录", "手机号一键登录"])
+            
+            with tab_acc:
+                st.write("")
+                acc_input = st.text_input("账号 / 用户名", key="login_acc_input", placeholder="输入用户名...")
+                pwd_input = st.text_input("密码", type="password", key="login_pwd_input", placeholder="输入密码...")
+                st.write("")
+                if st.button("立即登录", key="btn_login_acc", use_container_width=True):
+                    if not acc_input or not pwd_input:
+                        st.error("请输入账号和密码")
+                    elif acc_input in st.session_state.user_db and st.session_state.user_db[acc_input] == pwd_input:
+                        st.session_state.authenticated = True
+                        st.session_state.user_identity = acc_input
+                        st.rerun()
+                    else:
+                        st.error("账号或密码错误")
+            
+            with tab_phone:
+                st.write("")
+                phone_input = st.text_input("手机号码", key="login_phone_input", placeholder="输入11位手机号...")
+                
+                code_col1, code_col2 = st.columns([1.5, 1])
+                with code_col1:
+                    code_input = st.text_input("验证码", key="login_code_input", placeholder="6位验证码...")
+                with code_col2:
+                    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                    now = time.time()
+                    time_passed = now - st.session_state.code_send_time
+                    if time_passed < 60:
+                        st.button(f"{int(60 - time_passed)}s 后重发", disabled=True, key="btn_send_code_disabled", use_container_width=True)
+                    else:
+                        if st.button("获取验证码", key="btn_send_code", use_container_width=True):
+                            if not re.match(r"^1[3-9]\d{9}$", phone_input):
+                                st.error("请输入有效的手机号码")
+                            else:
+                                import random
+                                st.session_state.mock_code = str(random.randint(100000, 999999))
+                                st.session_state.code_send_time = time.time()
+                                st.rerun()
+                
+                if st.session_state.mock_code and (time.time() - st.session_state.code_send_time < 60):
+                    st.info(f"验证码已发送（测试提示：{st.session_state.mock_code}）")
+                
+                st.write("")
+                if st.button("手机号一键登录", key="btn_login_phone", use_container_width=True):
+                    if not phone_input or not code_input:
+                        st.error("请输入手机号和验证码")
+                    elif code_input == st.session_state.mock_code and st.session_state.mock_code != "":
+                        st.session_state.authenticated = True
+                        st.session_state.user_identity = phone_input
+                        st.session_state.mock_code = ""
+                        st.rerun()
+                    else:
+                        st.error("验证码不正确或已失效")
+            
+            st.divider()
+            switch_col1, switch_col2 = st.columns([1.2, 1])
+            with switch_col1:
+                st.markdown("<p style='font-size: 0.85rem; line-height: 2.2;'>还没有账号？</p>", unsafe_allow_html=True)
+            with switch_col2:
+                if st.button("注册账号", key="goto_register_btn", use_container_width=True):
+                    st.session_state.auth_mode = "register"
+                    st.rerun()
+
+        else:
+            st.markdown("<h2 style='text-align: center; border-bottom: 1px solid #111; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.8rem;'>注册账号</h2>", unsafe_allow_html=True)
+            reg_user = st.text_input("设置用户名 / 手机号", key="reg_user_input")
+            reg_pwd = st.text_input("设置密码", type="password", key="reg_pwd_input")
+            reg_pwd_confirm = st.text_input("确认密码", type="password", key="reg_pwd_confirm_input")
+            st.write("")
+            if st.button("完成注册并登录", key="btn_register_submit", use_container_width=True):
+                if not reg_user or not reg_pwd:
+                    st.error("用户名和密码不能为空")
+                elif reg_pwd != reg_pwd_confirm:
+                    st.error("两次输入的密码不一致")
+                elif reg_user in st.session_state.user_db:
+                    st.error("该账号已被注册")
+                else:
+                    st.session_state.user_db[reg_user] = reg_pwd
+                    st.session_state.authenticated = True
+                    st.session_state.user_identity = reg_user
+                    st.session_state.auth_mode = "login"
+                    st.rerun()
+            
+            st.divider()
+            if st.button("返回登录界面", key="goto_login_btn", use_container_width=True):
+                st.session_state.auth_mode = "login"
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# 未通过认证则拦截并渲染登录页
+if not st.session_state.authenticated:
+    render_auth_page()
+    st.stop()
+
+# ==================== 4. 核心处理与数据库函数 ====================
 def extract_sort_key(text):
     match_cn = re.search(r"第([零一二三四五六七八九十百0-9]+)条", text)
     if match_cn:
@@ -352,11 +532,9 @@ def extract_article_number(text):
     """提取法条文本中的条文编号（如第xx条、Article xx等）"""
     if not text:
         return ""
-    # 优先匹配中文“第xx条”
     match_cn = re.search(r"第[零一二三四五六七八九十百千0-9]+条", text)
     if match_cn:
         return match_cn.group(0)
-    # 匹配英文“Article xx”、“Art. xx”、“Recital xx”、“Section xx”等
     match_en = re.search(r"(Article\s+\d+|Art\.\s*\d+|Recital\s+\d+|Section\s+\d+)", text, re.IGNORECASE)
     if match_en:
         return match_en.group(0)
@@ -380,14 +558,11 @@ def parse_fine_amount(text):
 def get_clean_cell_text(cell):
     if cell.value is None or str(cell.value).strip() == "nan":
         return ""
-    
     is_rich = hasattr(cell, 'value') and isinstance(cell.value, openpyxl.cell.rich_text.CellRichText)
     if is_rich:
         full_text = "".join([str(rt.text) for rt in cell.value])
     else:
         full_text = str(cell.value)
-    
-    # 彻底清理复制引入的独立 svg 占位符
     full_text = re.sub(r'(?im)^\s*svg\s*$', '', full_text)
     return full_text.strip()
 
@@ -402,8 +577,6 @@ def clean_scenario_cell(val):
 @st.cache_data
 def init_database_from_excel():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # 智能查找最新的 Excel 文件
     possible_names = [
         "合规平台条文整理（修改4.0）_4.xlsx",
         "合规平台条文整理（修改4.0）.xlsx",
@@ -423,7 +596,6 @@ def init_database_from_excel():
                 break
     if not excel_path or not os.path.exists(excel_path):
         return False
-
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -439,11 +611,9 @@ def init_database_from_excel():
         )
     """)
     cursor.execute("DELETE FROM compliance_laws")
-
     wb = openpyxl.load_workbook(excel_path, data_only=False)
     sheet_name = wb.sheetnames[0]
     ws = wb[sheet_name]
-
     df_raw = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
     categories_row = df_raw.iloc[0]
     titles_row = df_raw.iloc[1]
@@ -451,18 +621,14 @@ def init_database_from_excel():
     col0_raw = df_raw.iloc[:, 0] if len(df_raw.columns) > 0 else pd.Series([""] * len(df_raw))
     col1_raw = df_raw.iloc[:, 1] if len(df_raw.columns) > 1 else pd.Series([""] * len(df_raw))
     col2_raw = df_raw.iloc[:, 2] if len(df_raw.columns) > 2 else pd.Series([""] * len(df_raw))
-
     laws_dict = {}
     laws_order = []
     all_law_columns = []
-
     for col_idx in range(3, len(df_raw.columns)):
         cat_raw = str(categories_row.iloc[col_idx]).strip()
         law_title = str(titles_row.iloc[col_idx]).strip()
-
         if not law_title or law_title == "nan":
             continue
-
         if "-" in cat_raw:
             parts = cat_raw.split("-", 1)
             region = parts[0].strip()
@@ -488,9 +654,7 @@ def init_database_from_excel():
             else:
                 region = "中国"
                 category = cat_raw if cat_raw and cat_raw != "nan" else "通用模块"
-
         all_law_columns.append((region, category, law_title))
-
         for row_idx in range(2, len(df_raw)):
             cell_obj = ws.cell(row=row_idx + 1, column=col_idx + 1)
             content_str = get_clean_cell_text(cell_obj)
@@ -501,7 +665,7 @@ def init_database_from_excel():
                 s2 = clean_scenario_cell(col2_raw.iloc[row_idx]) if len(df_raw.columns) > 2 else ""
                 
                 sc_parts = [x for x in [s0, s1, s2] if x]
-                scenario_text = " ➔ ".join(sc_parts)
+                scenario_text = " -> ".join(sc_parts)
                 sort_val = extract_sort_key(content_str)
                 
                 key = (region, category, law_title, content_str)
@@ -518,7 +682,6 @@ def init_database_from_excel():
                 
                 if scenario_text and scenario_text not in laws_dict[key]["scenarios"]:
                     laws_dict[key]["scenarios"].append(scenario_text)
-
     processed_laws = set()
     for key in laws_order:
         item = laws_dict[key]
@@ -528,7 +691,6 @@ def init_database_from_excel():
             (item["region"], item["category"], item["law_title"], combined_scenarios, "", item["content"], item["sort_order"])
         )
         processed_laws.add((item["region"], item["category"], item["law_title"]))
-
     for (r, c, lt) in set(all_law_columns):
         if (r, c, lt) not in processed_laws:
             cursor.execute(
@@ -542,7 +704,22 @@ def init_database_from_excel():
 
 success_db = init_database_from_excel()
 
-# ==================== 4. 顶端导航选项卡 ====================
+# ==================== 5. 顶端栏与导航选项卡 ====================
+top_bar_left, top_bar_right = st.columns([3, 1])
+with top_bar_left:
+    st.markdown(f"<div class='top-header-title'>智能网联汽车跨国数据合规平台</div>", unsafe_allow_html=True)
+with top_bar_right:
+    user_disp_col, logout_btn_col = st.columns([1.5, 1])
+    with user_disp_col:
+        st.markdown(f"<div style='font-family: JetBrains Mono, monospace; font-size: 0.8rem; text-align: right; padding-top: 6px;'>用户: {st.session_state.user_identity}</div>", unsafe_allow_html=True)
+    with logout_btn_col:
+        if st.button("退出登录", key="btn_logout", use_container_width=True):
+            st.session_state.authenticated = False
+            st.session_state.user_identity = None
+            st.rerun()
+
+st.write("")
+
 nav_items = [
     ("首页", "首页"),
     ("法律库", "法律库"),
@@ -550,7 +727,6 @@ nav_items = [
     ("案例库", "案例库"),
     ("关于我们", "关于我们")
 ]
-
 top_cols = st.columns(5)
 for idx, (label, choice_key) in enumerate(nav_items):
     with top_cols[idx]:
@@ -564,12 +740,12 @@ for idx, (label, choice_key) in enumerate(nav_items):
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-# ==================== 5. 页面展示逻辑 ====================
+# ==================== 6. 主内容页面展示逻辑 ====================
 if st.session_state.show_terms_page:
-    st.markdown("<h2 style='text-align: center; border-bottom: 3px solid #111;'>📖 术语解释总结全库专栏</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; border-bottom: 3px solid #111;'>术语解释总结全库专栏</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-family: Lora, serif; color: #666666;'>展示完整的汽车数据及出境合规术语释义，还原现代纸媒专栏的严谨审慎与清晰结构。</p>", unsafe_allow_html=True)
     
-    term_keyword = st.text_input("🔍 检索术语关键字 (如：个人信息、重要数据、GDPR...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
+    term_keyword = st.text_input("检索术语关键字 (如：个人信息、重要数据、GDPR...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
@@ -637,7 +813,6 @@ if st.session_state.show_terms_page:
                 else:
                     def_html = t_item['original_full']
                 
-                # 显式将 \n 替换为 <br> 防止打断 Markdown HTML 解析
                 def_html = def_html.replace('\n', '<br>')
                 source_text = f"（来源：《{t_item['source']}》）"
                 
@@ -743,7 +918,6 @@ else:
                         "fine_amount": fine_val
                     })
                 
-                # 根据第六行罚款金额从高到低排序，没有数字的排序靠后
                 cases_data.sort(key=lambda x: x["fine_amount"], reverse=True)
                     
                 if st.session_state.selected_case is None:
@@ -760,8 +934,7 @@ else:
                     )
                     st.write("")
                     
-                    # 交互式目录模块（黑框线、无Emoji、单列紧密无缝布局）
-                    st.markdown("### 📋 案例快速检索目录")
+                    st.markdown("### 案例快速检索目录")
                     st.markdown("<p style='font-size: 0.85rem; color: #666;'>点击下方案例名称可自动定位至对应案例并进行框选高亮：</p>", unsafe_allow_html=True)
                     
                     st.markdown('<div class="case-dir-container">', unsafe_allow_html=True)
@@ -799,9 +972,9 @@ else:
                             <div id="{case_anchor_id}" class="sharp-card {card_class}" style="border-left: 6px solid #111; padding: 20px 24px; margin-bottom: 16px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <h3 style="margin-top: 0; margin-bottom: 10px; font-family: Playfair Display, serif; font-size: 1.5rem; border-bottom: none;">
-                                        ⚖️ {c_name}
+                                        {c_name}
                                     </h3>
-                                    <span class="law-tag">🌍 {c_region}</span>
+                                    <span class="law-tag">辖区: {c_region}</span>
                                 </div>
                                 <p style="font-family: Lora, serif; color: #333; margin-bottom: 15px; font-size: 0.95rem; line-height: 1.6;">
                                     <b>【案件基本信息】</b>：{c_info}
@@ -810,12 +983,12 @@ else:
                             """,
                             unsafe_allow_html=True
                         )
-                        if st.button(f"查看完整案例报告 ➔", key=f"case_btn_{i}", use_container_width=True):
+                        if st.button(f"查看完整案例报告 ->", key=f"case_btn_{i}", use_container_width=True):
                             st.session_state.selected_case = c_name
                             st.rerun()
                 else:
                     active_case = next((c for c in cases_data if c["case_name"] == st.session_state.selected_case), None)
-                    if st.button("⬅ 返回案例库列表", key="back_to_cases"):
+                    if st.button("<- 返回案例库列表", key="back_to_cases"):
                         st.session_state.selected_case = None
                         st.rerun()
                         
@@ -825,9 +998,7 @@ else:
                         for sec_title in sections_order:
                             if sec_title in active_case["sections"]:
                                 content_val = active_case["sections"][sec_title]
-                                st.markdown(f"<h3 style='font-family: Playfair Display, serif; margin-top: 25px; border-bottom: 1px solid #111;'>📌 {sec_title}</h3>", unsafe_allow_html=True)
-                                
-                                # 将 \n 替换为 <br> 防止打断 HTML 块解析
+                                st.markdown(f"<h3 style='font-family: Playfair Display, serif; margin-top: 25px; border-bottom: 1px solid #111;'>{sec_title}</h3>", unsafe_allow_html=True)
                                 safe_content_val = content_val.replace('\n', '<br>')
                                 st.markdown(f'<div class="law-content" style="white-space: pre-wrap;">{safe_content_val}</div>', unsafe_allow_html=True)
                     else:
@@ -871,7 +1042,7 @@ else:
                 unsafe_allow_html=True
             )
             st.markdown('<div class="inline-term-btn">', unsafe_allow_html=True)
-            if st.button("📖 术语解释总结", key="inline_terms_btn", use_container_width=True):
+            if st.button("术语解释总结", key="inline_terms_btn", use_container_width=True):
                 st.session_state.show_terms_page = True
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -887,18 +1058,17 @@ else:
             if st.session_state.nav_choice == "法律库":
                 filter_col1, filter_col2 = st.columns(2)
                 with filter_col1:
-                    selected_region = st.selectbox("🌐 司法辖区", ["全部", "中国", "欧盟", "美国"])
+                    selected_region = st.selectbox("司法辖区", ["全部", "中国", "欧盟", "美国"])
                 with filter_col2:
                     if selected_region == "全部":
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws", conn)
                     else:
                         categories_df = pd.read_sql("SELECT DISTINCT category FROM compliance_laws WHERE region = ?", conn, params=(selected_region,))
                     categories = ["全部"] + categories_df["category"].tolist()
-                    selected_category = st.selectbox("📁 合规模块", categories)
+                    selected_category = st.selectbox("合规模块", categories)
                     
-                keyword = st.text_input("🔍 搜索", placeholder="如：数据出境、GDPR...")
+                keyword = st.text_input("搜索", placeholder="如：数据出境、GDPR...")
                 
-                # 合规依据导出区域
                 export_col1, export_col2 = st.columns([2, 1])
                 with export_col1:
                     st.markdown(f"### 已选择 {len(st.session_state.selected_laws)} 条法条")
@@ -910,7 +1080,7 @@ else:
                             st.write(citation_title)
                 with export_col2:
                     st.markdown("### 操作")
-                    generate_pdf_clicked = st.button("📄 生成所选法条 PDF")
+                    generate_pdf_clicked = st.button("生成所选法条 PDF")
                     pdf_download_container = st.container()
                     
                 query = "SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws"
@@ -936,9 +1106,8 @@ else:
                 if keyword:
                     st.markdown(f"**检索结果**：包含 <span style='background-color:#111; color:#F9F9F7; font-weight:bold; padding:2px 6px;'>“{keyword}”</span> 的内容共 **{len(module_df)}** 条", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"**检索条件**：辖区 [{selected_region}] | 模块 [{selected_category}] ➔ 共计检索到 **{len(module_df)}** 条内容")
+                    st.markdown(f"**检索条件**：辖区 [{selected_region}] | 模块 [{selected_category}] -> 共计检索到 **{len(module_df)}** 条内容")
                     
-                # 清除已不存在的选择
                 current_ids = set(module_df.index.tolist())
                 st.session_state.selected_laws = [
                     x for x in st.session_state.selected_laws
@@ -947,7 +1116,7 @@ else:
                 
                 grouped = module_df.groupby(["region", "category", "law_title"], sort=False)
                 for (region_name, cat_name, law_title), group in grouped:
-                    expander_label = f"📌 【{region_name}】 {law_title} ({len(group)} 条)"
+                    expander_label = f"【{region_name}】 {law_title} ({len(group)} 条)"
                     with st.expander(expander_label, expanded=False):
                         st.markdown(f"<h4 style='font-family: Playfair Display, serif;'>{law_title}</h4>", unsafe_allow_html=True)
                         st.caption(f"归属辖区：{region_name} | 模块：{cat_name}")
@@ -979,7 +1148,7 @@ else:
                             tags_html = ""
                             if sc0:
                                 tags = [t.strip() for t in sc0.split("|") if t.strip()]
-                                tags_str = "".join([f'<span class="law-tag">💡 {t}</span>' for t in tags])
+                                tags_str = "".join([f'<span class="law-tag">{t}</span>' for t in tags])
                                 tags_html = f'<div style="margin-bottom:10px;">{tags_str}</div>'
                                 
                             content_text = law_text
@@ -991,10 +1160,8 @@ else:
                                     f"<span style='background-color:#111;color:#F9F9F7;font-weight:bold;'>{keyword}</span>"
                                 )
                                 
-                            # 将 \n 替换为 <br> 防止 Streamlit Markdown 遇到空行中止解析
                             content_text = content_text.replace('\n', '<br>')
                             
-                            # 拼装为一整行的 HTML 字符串注入避免多行代码块缩进解析 Bug
                             html_str = (
                                 f'<div class="law-content" style="margin-bottom:20px;white-space:normal;">'
                                 f'{tags_html}'
@@ -1039,14 +1206,14 @@ else:
                     
                     with pdf_download_container:
                         st.download_button(
-                            "⬇️ 下载PDF",
+                            "下载PDF",
                             data=buffer,
                             file_name="企业合规自查法条清单.pdf",
                             mime="application/pdf"
                         )
                         
             elif st.session_state.nav_choice == "出境全流程时间轴":
-                st.markdown("### ⏱️ 数据出境全流程纵向时间轴")
+                st.markdown("### 数据出境全流程纵向时间轴")
                 st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
                 
                 all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
@@ -1060,7 +1227,7 @@ else:
                      "desc": "建立持续合规审计机制、安全事件应急响应与境外接收方权益保障监督。"}
                 ]
                 
-                phase_tabs = st.tabs([f"📌 {p['title'].split(' ')[0]} {p['title'].split(' ')[1]}" for p in timeline_phases])
+                phase_tabs = st.tabs([f"{p['title'].split(' ')[0]} {p['title'].split(' ')[1]}" for p in timeline_phases])
                 
                 for i, p_info in enumerate(timeline_phases):
                     with phase_tabs[i]:
@@ -1084,7 +1251,6 @@ else:
                             content = row["content"]
                             tag_str = f"[{region_n}] {sc0}" if sc0 else f"[{region_n}]"
                             
-                            # 同样适用防打断规则
                             content_safe = content
                             content_safe = re.sub(r'(?im)^\s*svg\s*$', '', content_safe)
                             content_safe = content_safe.replace('\n', '<br>')
