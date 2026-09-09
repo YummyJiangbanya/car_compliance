@@ -173,22 +173,6 @@ NEWSPRINT_CSS = """
         color: #F9F9F7 !important;
     }
     
-    /* 案例目录按钮专属黑色边框与硬朗风格 */
-    .case-dir-btn button {
-        border: 1px solid #111111 !important;
-        border-radius: 0px !important;
-        background-color: #F9F9F7 !important;
-        color: #111111 !important;
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 600 !important;
-        transition: all 150ms ease !important;
-    }
-    .case-dir-btn button:hover {
-        background-color: #111111 !important;
-        color: #F9F9F7 !important;
-        box-shadow: 2px 2px 0px 0px #111111 !important;
-    }
-    
     /* 术语按钮样式 */
     .inline-term-btn button {
         background-color: #F9F9F7 !important;
@@ -308,6 +292,30 @@ NEWSPRINT_CSS = """
         text-transform: uppercase;
         letter-spacing: 0.1em;
     }
+
+    /* 案例快速检索目录 - 一列无空隙黑框定制样式 */
+    .case-dir-column div[data-testid="stElementContainer"] {
+        margin-bottom: -1px !important;
+    }
+    .case-dir-column button {
+        background-color: #F9F9F7 !important;
+        color: #111111 !important;
+        border: 1px solid #111111 !important;
+        border-radius: 0px !important;
+        font-family: 'Lora', Georgia, serif !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        text-align: left !important;
+        padding: 12px 18px !important;
+        margin: 0px !important;
+        box-shadow: none !important;
+        transition: all 100ms ease !important;
+    }
+    .case-dir-column button:hover {
+        background-color: #111111 !important;
+        color: #F9F9F7 !important;
+        border-color: #111111 !important;
+    }
 </style>
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
@@ -335,11 +343,9 @@ def extract_article_number(text):
     """提取法条文本中的条文编号（如第xx条、Article xx等）"""
     if not text:
         return ""
-    # 优先匹配中文“第xx条”
     match_cn = re.search(r"第[零一二三四五六七八九十百千0-9]+条", text)
     if match_cn:
         return match_cn.group(0)
-    # 匹配英文“Article xx”、“Art. xx”、“Recital xx”、“Section xx”等
     match_en = re.search(r"(Article\s+\d+|Art\.\s*\d+|Recital\s+\d+|Section\s+\d+)", text, re.IGNORECASE)
     if match_en:
         return match_en.group(0)
@@ -370,7 +376,6 @@ def get_clean_cell_text(cell):
     else:
         full_text = str(cell.value)
     
-    # 彻底清理复制引入的独立 svg 占位符
     full_text = re.sub(r'(?im)^\s*svg\s*$', '', full_text)
     return full_text.strip()
 
@@ -386,7 +391,6 @@ def clean_scenario_cell(val):
 def init_database_from_excel():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 智能查找最新的 Excel 文件
     possible_names = [
         "合规平台条文整理（修改4.0）_4.xlsx",
         "合规平台条文整理（修改4.0）.xlsx",
@@ -608,7 +612,6 @@ if st.session_state.show_terms_page:
                 else:
                     def_html = t_item['original_full']
                 
-                # 显式将 \n 替换为 <br> 防止打断 Markdown HTML 解析
                 def_html = def_html.replace('\n', '<br>')
                 source_text = f"（来源：《{t_item['source']}》）"
                 
@@ -731,14 +734,14 @@ else:
                     )
                     st.write("")
                     
-                    # 交互式目录模块 (更新为竖向排列及黑色边框适配样式)
-                    st.markdown("### 📋 案例快速检索目录（点击定位）")
-                    st.markdown("<p style='font-size: 0.85rem; color: #666;'>点击下方按钮可自动定位至对应案例并进行框选高亮：</p>", unsafe_allow_html=True)
+                    # 案例快速检索目录（已删除“点击定位”，适配整幅画面黑色边框，一列排布且无空隙）
+                    st.markdown("### 📋 案例快速检索目录")
+                    st.markdown("<p style='font-size: 0.85rem; color: #666; margin-bottom: 12px;'>点击下方按钮可自动定位至对应案例并进行框选高亮：</p>", unsafe_allow_html=True)
                     
+                    st.markdown('<div class="case-dir-column">', unsafe_allow_html=True)
                     for i, c_item in enumerate(cases_data):
                         c_name = c_item["case_name"]
                         case_anchor_id = f"case_card_{i}"
-                        st.markdown('<div class="case-dir-btn" style="margin-bottom: 8px;">', unsafe_allow_html=True)
                         if st.button(f"📍 {c_name}", key=f"dir_btn_{i}", use_container_width=True):
                             st.session_state.highlighted_case = c_name
                             js_code = f"""
@@ -750,7 +753,7 @@ else:
                             </script>
                             """
                             st.components.v1.html(js_code, height=0, width=0)
-                        st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.divider()
                     for i, c_item in enumerate(cases_data):
@@ -795,7 +798,6 @@ else:
                                 content_val = active_case["sections"][sec_title]
                                 st.markdown(f"<h3 style='font-family: Playfair Display, serif; margin-top: 25px; border-bottom: 1px solid #111;'>📌 {sec_title}</h3>", unsafe_allow_html=True)
                                 
-                                # 将 \n 替换为 <br> 防止打断 HTML 块解析
                                 safe_content_val = content_val.replace('\n', '<br>')
                                 st.markdown(f'<div class="law-content" style="white-space: pre-wrap;">{safe_content_val}</div>', unsafe_allow_html=True)
                     else:
@@ -866,7 +868,6 @@ else:
                     
                 keyword = st.text_input("🔍 搜索", placeholder="如：数据出境、GDPR...")
                 
-                # 合规依据导出区域
                 export_col1, export_col2 = st.columns([2, 1])
                 with export_col1:
                     st.markdown(f"### 已选择 {len(st.session_state.selected_laws)} 条法条")
@@ -906,7 +907,6 @@ else:
                 else:
                     st.markdown(f"**检索条件**：辖区 [{selected_region}] | 模块 [{selected_category}] ➔ 共计检索到 **{len(module_df)}** 条内容")
                     
-                # 清除已不存在的选择
                 current_ids = set(module_df.index.tolist())
                 st.session_state.selected_laws = [
                     x for x in st.session_state.selected_laws
@@ -959,10 +959,8 @@ else:
                                     f"<span style='background-color:#111;color:#F9F9F7;font-weight:bold;'>{keyword}</span>"
                                 )
                                 
-                            # 将 \n 替换为 <br> 防止 Streamlit Markdown 遇到空行中止解析
                             content_text = content_text.replace('\n', '<br>')
                             
-                            # 拼装为一整行的 HTML 字符串注入避免多行代码块缩进解析 Bug
                             html_str = (
                                 f'<div class="law-content" style="margin-bottom:20px;white-space:normal;">'
                                 f'{tags_html}'
@@ -1052,7 +1050,6 @@ else:
                             content = row["content"]
                             tag_str = f"[{region_n}] {sc0}" if sc0 else f"[{region_n}]"
                             
-                            # 同样适用防打断规则
                             content_safe = content
                             content_safe = re.sub(r'(?im)^\s*svg\s*$', '', content_safe)
                             content_safe = content_safe.replace('\n', '<br>')
