@@ -385,6 +385,16 @@ NEWSPRINT_CSS = """
         text-decoration: underline;
     }
     
+    /* 关于我们悬停变红效果 */
+    .about-feedback-hover {
+        color: #333333;
+        transition: color 200ms ease;
+    }
+    .about-feedback-hover:hover {
+        color: #CC0000 !important;
+        font-weight: bold;
+    }
+
     /* 报头元数据 */
     .newsprint-masthead {
         border-top: 3px solid #111111;
@@ -416,6 +426,7 @@ NEWSPRINT_CSS = """
 </style>
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
+
 DB_FILE = "car_compliance.db"
 
 # 密码校验逻辑：允许大小写字母、数字，以及仅限 “_”、“@”、“*” 三种特殊字符
@@ -760,7 +771,6 @@ with top_bar_right:
             st.session_state.authenticated = False
             st.session_state.user_identity = None
             st.rerun()
-
 st.write("")
 nav_items = [
     ("首页", "首页"),
@@ -918,7 +928,8 @@ else:
             """
             <h1 style='margin-top:0; border-bottom:none; font-size: 2.8rem;'>关于我们</h1>
             <p style='font-family: Lora, serif; font-size: 1.1rem; line-height: 1.8; color: #333333; margin: 10px 0 30px 0;'>
-                汽车数据观察室，是由华东政法大学国际金融法律学院、法律学院、经济法学院、传播学院、商学院五大学院本科生组建的跨学科研究团队。我们聚焦中国智能网联汽车出海欧盟过程中，车外实景影像数据跨境流动面临的中欧法律规制冲突，通过比较法研究、案例实证与企业深度访谈，探索兼顾数据安全与产业发展的双向合规路径，为中国汽车产业的全球化进程提供学术支撑与实践参考。
+                汽车数据观察室，是由华东政法大学国际金融法律学院、法律学院、经济法学院、传播学院、商学院五大学院本科生组建的跨学科研究团队。我们聚焦中国智能网联汽车出海欧盟过程中，车外实景影像数据跨境流动面临的中欧法律规制冲突，通过比较法研究、案例实证与企业深度访谈，探索兼顾数据安全与产业发展的双向合规路径，为中国汽车产业的全球化进程提供学术支撑与实践参考。<br><br>
+                <span class="about-feedback-hover">遇到问题/提供反馈意见请在公众号@汽车数据观察室后台留言</span>
             </p>
             """, 
             unsafe_allow_html=True
@@ -968,7 +979,7 @@ else:
                         <div class="sharp-card" style="border-top: 4px solid #111;">
                             <h1 style='margin-top:0; border-bottom:none; font-size: 2.4rem;'>合规典型案例库</h1>
                             <p style='font-family: Lora, serif; font-size: 1rem; line-height: 1.5; color: #333333; margin-bottom: 0;'>
-                                典型案例库，收录全球数据合规与跨境执法案件。点击案例名称，可查看案件基本信息、事实梳理、法律分析、处罚结果、合规启示和原始资料链接。
+                                典型案例库，收录全球数据合规与跨境执法案件。点击目录案例名称，可跳转至对应案例，查看案件基本信息、事实梳理、法律分析、处罚结果、合规启示和原始资料链接。
                             </p>
                         </div>
                         """, 
