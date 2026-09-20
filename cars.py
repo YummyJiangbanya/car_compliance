@@ -45,12 +45,18 @@ if "selected_laws" not in st.session_state:
     st.session_state.selected_laws = []
 if "highlighted_case" not in st.session_state:
     st.session_state.highlighted_case = None
-    
-# 新增：用于交叉引用的全局检索跳转变量
-if "law_search_keyword" not in st.session_state:
-    st.session_state.law_search_keyword = ""
-if "case_search_keyword" not in st.session_state:
-    st.session_state.case_search_keyword = ""
+
+# == 新增：搜索历史记录 Session State ==
+if "search_history" not in st.session_state:
+    st.session_state.search_history = []
+if "trigger_search" not in st.session_state:
+    st.session_state.trigger_search = ""
+
+# 在加载输入框之前，自动应用被点击的历史记录检索词
+if st.session_state.trigger_search:
+    st.session_state.standalone_term_search = st.session_state.trigger_search
+    st.session_state.law_search_input = st.session_state.trigger_search
+    st.session_state.trigger_search = ""
 
 # 模拟用户数据库 (支持注册记忆)
 if "user_db" not in st.session_state:
@@ -431,7 +437,6 @@ NEWSPRINT_CSS = """
 </style>
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
-
 DB_FILE = "car_compliance.db"
 
 # 密码校验逻辑：允许大小写字母、数字，以及仅限 “_”、“@”、“*” 三种特殊字符
@@ -764,13 +769,28 @@ def init_database_from_excel():
 success_db = init_database_from_excel()
 
 # ==================== 5. 顶端栏与导航选项卡 ====================
-top_bar_left, top_bar_right = st.columns([3, 1])
+top_bar_left, top_bar_right = st.columns([3, 1.5])
 with top_bar_left:
     st.markdown(f"<div class='top-header-title'>智能网联汽车跨国数据合规平台</div>", unsafe_allow_html=True)
 with top_bar_right:
-    user_disp_col, logout_btn_col = st.columns([1.5, 1])
+    user_disp_col, history_col, logout_btn_col = st.columns([1.2, 1, 1])
     with user_disp_col:
         st.markdown(f"<div style='font-family: JetBrains Mono, monospace; font-size: 0.8rem; text-align: right; padding-top: 6px;'>用户: {st.session_state.user_identity}</div>", unsafe_allow_html=True)
+    with history_col:
+        if st.session_state.authenticated:
+            # === 新增功能：搜索记录下拉浮窗 ===
+            with st.popover("搜索记录"):
+                if not st.session_state.search_history:
+                    st.write("暂无记录")
+                else:
+                    for h_idx, h_item in enumerate(reversed(st.session_state.search_history)):
+                        if st.button(h_item, key=f"hist_btn_{h_idx}", use_container_width=True):
+                            st.session_state.trigger_search = h_item
+                            st.rerun()
+                    st.divider()
+                    if st.button("清空记录", key="clear_hist", use_container_width=True):
+                        st.session_state.search_history = []
+                        st.rerun()
     with logout_btn_col:
         if st.button("退出登录", key="btn_logout", use_container_width=True):
             st.session_state.authenticated = False
@@ -805,6 +825,13 @@ if st.session_state.show_terms_page:
     
     term_keyword = st.text_input("检索术语关键字 (如：个人信息、重要数据、GDPR...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
     
+    # 捕获并保存术语检索记录
+    if term_keyword:
+        if not st.session_state.search_history or st.session_state.search_history[-1] != term_keyword:
+            if term_keyword in st.session_state.search_history:
+                st.session_state.search_history.remove(term_keyword)
+            st.session_state.search_history.append(term_keyword)
+            
     current_dir = os.path.dirname(os.path.abspath(__file__))
     term_excel_path = os.path.join(current_dir, "术语解释总结.xlsx")
     
@@ -886,7 +913,6 @@ if st.session_state.show_terms_page:
             st.error(f"加载术语表异常: {e}")
     else:
         st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
-
 else:
     if st.session_state.nav_choice == "首页":
         st.markdown(
@@ -920,7 +946,6 @@ else:
             """,
             unsafe_allow_html=True
         )
-
     elif st.session_state.nav_choice == "关于我们":
         st.markdown(
             """
@@ -942,7 +967,6 @@ else:
             """, 
             unsafe_allow_html=True
         )
-
     elif st.session_state.nav_choice == "案例库":
         st.markdown(
             """
@@ -981,23 +1005,16 @@ else:
                     })
                 
                 cases_data.sort(key=lambda x: x["fine_amount"], reverse=True)
-                
-                # 新增逻辑：如果传来了全局关键字检索（时间轴联动），主动定位对应的案例
-                if st.session_state.case_search_keyword != "":
-                    for c_item in cases_data:
-                        if st.session_state.case_search_keyword.lower() in c_item["case_name"].lower() or \
-                           st.session_state.case_search_keyword.lower() in str(c_item["sections"]).lower():
-                            st.session_state.selected_case = c_item["case_name"]
-                            break
-                    st.session_state.case_search_keyword = ""
                     
                 if st.session_state.selected_case is None:
+                    # ==== 新增说明 2：案例库联动说明文字 ====
                     st.markdown(
                         """
                         <div class="sharp-card" style="border-top: 4px solid #111;">
                             <h1 style='margin-top:0; border-bottom:none; font-size: 2.4rem;'>合规典型案例库</h1>
                             <p style='font-family: Lora, serif; font-size: 1rem; line-height: 1.5; color: #333333; margin-bottom: 0;'>
-                                典型案例库，收录全球数据合规与跨境执法案件。点击目录案例名称，可跳转至对应案例，查看案件基本信息、事实梳理、法律分析、处罚结果、合规启示和原始资料链接。
+                                典型案例库，收录全球数据合规与跨境执法案件。点击目录案例名称，可跳转至对应案例，查看案件基本信息、事实梳理、法律分析、处罚结果、合规启示和原始资料链接。<br><br>
+                                <span style='color: #CC0000; font-weight: bold;'>联动功能说明：</span>支持与法律库和案例库的联动——例如点击“安全评估申报”节点，可跳转至法律库中《数据出境安全评估办法》的对应条款；点击“TIA评估”节点，可跳转至案例库中Schrems II案。
                             </p>
                         </div>
                         """, 
@@ -1093,13 +1110,15 @@ else:
         
         title_col, btn_col = st.columns([4, 1])
         with title_col:
+            # ==== 新增说明 1：法律库联动说明文字 ====
             st.markdown(
                 """
                 <div class="sharp-card" style="border-top: 4px solid #111; margin-bottom: 0; height: 100%;">
                     <h1 style='margin-top:0; border-bottom:none; font-size: 2.4rem;'>智能网联汽车跨国数据合规平台</h1>
                     <p style='font-family: Lora, serif; font-size: 1rem; line-height: 1.5; color: #333333; margin-bottom: 0;'>
                         <b>中国、欧盟、美国</b>三大法域的车外实景影像及关键汽车数据合规要求汇总。<br>
-                        按法域分类整理，方便对照查阅，帮您在做跨境合规时快速找到需要的规则。
+                        按法域分类整理，方便对照查阅，帮您在做跨境合规时快速找到需要的规则。<br><br>
+                        <span style='color: #CC0000; font-weight: bold;'>联动功能说明：</span>支持与法律库和案例库的联动——例如点击“安全评估申报”节点，可跳转至法律库中《数据出境安全评估办法》的对应条款；点击“TIA评估”节点，可跳转至案例库中Schrems II案。
                     </p>
                 </div>
                 """, 
@@ -1138,14 +1157,14 @@ else:
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("合规模块", categories)
                     
-                # 新增逻辑：承接全局关键字联动（当由时间轴跳转来时填入关键字）
-                if "law_search_input" not in st.session_state:
-                    st.session_state.law_search_input = ""
-                if st.session_state.law_search_keyword != "":
-                    st.session_state.law_search_input = st.session_state.law_search_keyword
-                    st.session_state.law_search_keyword = ""
-                    
                 keyword = st.text_input("搜索", placeholder="如：数据出境、GDPR...", key="law_search_input")
+                
+                # 捕获并保存法律库检索记录
+                if keyword:
+                    if not st.session_state.search_history or st.session_state.search_history[-1] != keyword:
+                        if keyword in st.session_state.search_history:
+                            st.session_state.search_history.remove(keyword)
+                        st.session_state.search_history.append(keyword)
                 
                 export_col1, export_col2 = st.columns([2, 1])
                 with export_col1:
@@ -1291,20 +1310,10 @@ else:
                         )
                         
             elif st.session_state.nav_choice == "出境全流程时间轴":
-                # 新增逻辑：定义需要进行交叉联动跳转的共同关键词字典映射
-                CROSS_REFERENCES = {
-                    "安全评估": {"target": "law", "query": "数据出境安全评估办法"},
-                    "TIA": {"target": "case", "query": "Schrems II"},
-                    "Schrems": {"target": "case", "query": "Schrems II"},
-                    "标准合同": {"target": "law", "query": "标准合同"},
-                    "SCC": {"target": "law", "query": "标准合同"},
-                    "个人信息保护认证": {"target": "law", "query": "个人信息保护认证"},
-                    "GDPR": {"target": "law", "query": "GDPR"},
-                    "滴滴": {"target": "case", "query": "滴滴"}
-                }
-
                 st.markdown("### 数据出境全流程纵向时间轴")
                 st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
+                # ==== 新增说明 3：时间轴联动说明文字 ====
+                st.markdown("<p style='font-family: Lora, serif; font-size: 0.95rem; line-height: 1.5; color: #333333;'><span style='color: #CC0000; font-weight: bold;'>联动功能说明：</span>支持与法律库和案例库的联动——例如点击“安全评估申报”节点，可跳转至法律库中《数据出境安全评估办法》的对应条款；点击“TIA评估”节点，可跳转至案例库中Schrems II案。</p>", unsafe_allow_html=True)
                 
                 all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
                 
@@ -1334,7 +1343,7 @@ else:
                             if phase_df.empty: phase_df = all_laws_df.iloc[7:]
                             
                         st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
-                        for idx, row in phase_df.iterrows():
+                        for _, row in phase_df.iterrows():
                             region_n = row["region"]
                             law_t = row["law_title"]
                             sc0 = row["sub_cat_0"]
@@ -1356,32 +1365,5 @@ else:
                                 f'</div>'
                             )
                             st.markdown(timeline_card_html, unsafe_allow_html=True)
-                            
-                            # 新增逻辑：智能检索文本，生成相应的引用跳转按钮并对齐卡片排版
-                            matched_links = []
-                            text_to_search = (str(content_safe) + str(law_t) + str(sc0)).upper()
-                            for kw, link_info in CROSS_REFERENCES.items():
-                                if kw.upper() in text_to_search:
-                                    if not any(m["query"] == link_info["query"] for m in matched_links):
-                                        matched_links.append(link_info)
-                                        
-                            if matched_links:
-                                btn_cols = st.columns([0.2, 1, 1, 1, 3]) # 第一列用作轻微占位缩进
-                                for b_idx, link_info in enumerate(matched_links):
-                                    if b_idx < 3: # 限制最多显示三个按钮以保护布局排版
-                                        with btn_cols[b_idx + 1]:
-                                            t = link_info["target"]
-                                            q = link_info["query"]
-                                            label = f"🔗 引用法律: {q}" if t == "law" else f"🔗 引用案例: {q}"
-                                            if st.button(label, key=f"xlink_p{i}_r{idx}_b{b_idx}"):
-                                                if t == "law":
-                                                    st.session_state.nav_choice = "法律库"
-                                                    st.session_state.law_search_keyword = q
-                                                elif t == "case":
-                                                    st.session_state.nav_choice = "案例库"
-                                                    st.session_state.case_search_keyword = q
-                                                st.rerun()
-                                st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
-                                
                         st.markdown('</div>', unsafe_allow_html=True)
             conn.close()
