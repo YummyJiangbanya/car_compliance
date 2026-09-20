@@ -45,6 +45,12 @@ if "selected_laws" not in st.session_state:
     st.session_state.selected_laws = []
 if "highlighted_case" not in st.session_state:
     st.session_state.highlighted_case = None
+    
+# 新增：用于交叉引用的全局检索跳转变量
+if "law_search_keyword" not in st.session_state:
+    st.session_state.law_search_keyword = ""
+if "case_search_keyword" not in st.session_state:
+    st.session_state.case_search_keyword = ""
 
 # 模拟用户数据库 (支持注册记忆)
 if "user_db" not in st.session_state:
@@ -394,7 +400,6 @@ NEWSPRINT_CSS = """
         color: #CC0000 !important;
         font-weight: bold;
     }
-
     /* 报头元数据 */
     .newsprint-masthead {
         border-top: 3px solid #111111;
@@ -771,6 +776,7 @@ with top_bar_right:
             st.session_state.authenticated = False
             st.session_state.user_identity = None
             st.rerun()
+
 st.write("")
 nav_items = [
     ("首页", "首页"),
@@ -880,6 +886,7 @@ if st.session_state.show_terms_page:
             st.error(f"加载术语表异常: {e}")
     else:
         st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
+
 else:
     if st.session_state.nav_choice == "首页":
         st.markdown(
@@ -913,6 +920,7 @@ else:
             """,
             unsafe_allow_html=True
         )
+
     elif st.session_state.nav_choice == "关于我们":
         st.markdown(
             """
@@ -934,6 +942,7 @@ else:
             """, 
             unsafe_allow_html=True
         )
+
     elif st.session_state.nav_choice == "案例库":
         st.markdown(
             """
@@ -972,6 +981,15 @@ else:
                     })
                 
                 cases_data.sort(key=lambda x: x["fine_amount"], reverse=True)
+                
+                # 新增逻辑：如果传来了全局关键字检索（时间轴联动），主动定位对应的案例
+                if st.session_state.case_search_keyword != "":
+                    for c_item in cases_data:
+                        if st.session_state.case_search_keyword.lower() in c_item["case_name"].lower() or \
+                           st.session_state.case_search_keyword.lower() in str(c_item["sections"]).lower():
+                            st.session_state.selected_case = c_item["case_name"]
+                            break
+                    st.session_state.case_search_keyword = ""
                     
                 if st.session_state.selected_case is None:
                     st.markdown(
@@ -1120,7 +1138,14 @@ else:
                     categories = ["全部"] + categories_df["category"].tolist()
                     selected_category = st.selectbox("合规模块", categories)
                     
-                keyword = st.text_input("搜索", placeholder="如：数据出境、GDPR...")
+                # 新增逻辑：承接全局关键字联动（当由时间轴跳转来时填入关键字）
+                if "law_search_input" not in st.session_state:
+                    st.session_state.law_search_input = ""
+                if st.session_state.law_search_keyword != "":
+                    st.session_state.law_search_input = st.session_state.law_search_keyword
+                    st.session_state.law_search_keyword = ""
+                    
+                keyword = st.text_input("搜索", placeholder="如：数据出境、GDPR...", key="law_search_input")
                 
                 export_col1, export_col2 = st.columns([2, 1])
                 with export_col1:
@@ -1266,6 +1291,18 @@ else:
                         )
                         
             elif st.session_state.nav_choice == "出境全流程时间轴":
+                # 新增逻辑：定义需要进行交叉联动跳转的共同关键词字典映射
+                CROSS_REFERENCES = {
+                    "安全评估": {"target": "law", "query": "数据出境安全评估办法"},
+                    "TIA": {"target": "case", "query": "Schrems II"},
+                    "Schrems": {"target": "case", "query": "Schrems II"},
+                    "标准合同": {"target": "law", "query": "标准合同"},
+                    "SCC": {"target": "law", "query": "标准合同"},
+                    "个人信息保护认证": {"target": "law", "query": "个人信息保护认证"},
+                    "GDPR": {"target": "law", "query": "GDPR"},
+                    "滴滴": {"target": "case", "query": "滴滴"}
+                }
+
                 st.markdown("### 数据出境全流程纵向时间轴")
                 st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
                 
@@ -1297,7 +1334,7 @@ else:
                             if phase_df.empty: phase_df = all_laws_df.iloc[7:]
                             
                         st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
-                        for _, row in phase_df.iterrows():
+                        for idx, row in phase_df.iterrows():
                             region_n = row["region"]
                             law_t = row["law_title"]
                             sc0 = row["sub_cat_0"]
@@ -1319,5 +1356,32 @@ else:
                                 f'</div>'
                             )
                             st.markdown(timeline_card_html, unsafe_allow_html=True)
+                            
+                            # 新增逻辑：智能检索文本，生成相应的引用跳转按钮并对齐卡片排版
+                            matched_links = []
+                            text_to_search = (str(content_safe) + str(law_t) + str(sc0)).upper()
+                            for kw, link_info in CROSS_REFERENCES.items():
+                                if kw.upper() in text_to_search:
+                                    if not any(m["query"] == link_info["query"] for m in matched_links):
+                                        matched_links.append(link_info)
+                                        
+                            if matched_links:
+                                btn_cols = st.columns([0.2, 1, 1, 1, 3]) # 第一列用作轻微占位缩进
+                                for b_idx, link_info in enumerate(matched_links):
+                                    if b_idx < 3: # 限制最多显示三个按钮以保护布局排版
+                                        with btn_cols[b_idx + 1]:
+                                            t = link_info["target"]
+                                            q = link_info["query"]
+                                            label = f"🔗 引用法律: {q}" if t == "law" else f"🔗 引用案例: {q}"
+                                            if st.button(label, key=f"xlink_p{i}_r{idx}_b{b_idx}"):
+                                                if t == "law":
+                                                    st.session_state.nav_choice = "法律库"
+                                                    st.session_state.law_search_keyword = q
+                                                elif t == "case":
+                                                    st.session_state.nav_choice = "案例库"
+                                                    st.session_state.case_search_keyword = q
+                                                st.rerun()
+                                st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+                                
                         st.markdown('</div>', unsafe_allow_html=True)
             conn.close()
