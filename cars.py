@@ -437,6 +437,7 @@ NEWSPRINT_CSS = """
 </style>
 """
 st.markdown(NEWSPRINT_CSS, unsafe_allow_html=True)
+
 DB_FILE = "car_compliance.db"
 
 # 密码校验逻辑：允许大小写字母、数字，以及仅限 “_”、“@”、“*” 三种特殊字符
@@ -446,7 +447,6 @@ def is_valid_password(pwd):
 
 # ==================== 3. 登录与注册模块 (包含大小写与特殊符号识别) ====================
 def render_auth_page():
-    # 顶部品牌标识
     st.markdown(
         """
         <div class="top-header-bar">
@@ -460,7 +460,6 @@ def render_auth_page():
     st.write("")
     st.write("")
     
-    # 三列居中布局
     col1, col2, col3 = st.columns([1, 1.3, 1])
     
     with col2:
@@ -474,7 +473,6 @@ def render_auth_page():
         if st.session_state.auth_mode == "login":
             st.markdown("<h2 style='text-align: center; border-bottom: 1px solid #111; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.8rem;'>用户登录</h2>", unsafe_allow_html=True)
             
-            # 登录方式切换
             tab_acc, tab_phone = st.tabs(["账号密码登录", "手机号一键登录"])
             
             with tab_acc:
@@ -554,7 +552,6 @@ def render_auth_page():
                 elif reg_user in st.session_state.user_db:
                     st.error("该账号已被注册")
                 else:
-                    # 记住账号与密码，并直接登录
                     st.session_state.user_db[reg_user] = reg_pwd
                     st.session_state.authenticated = True
                     st.session_state.user_identity = reg_user
@@ -603,6 +600,81 @@ def extract_article_number(text):
     if match_en:
         return match_en.group(0)
     return ""
+
+def int_to_cn(num):
+    """阿拉伯数字转中文大写数字（1->一，11->十一，21->二十一）"""
+    cn_digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+    if num <= 10:
+        return cn_digits[num]
+    elif num < 20:
+        return "十" + (cn_digits[num % 10] if num % 10 != 0 else "")
+    elif num < 100:
+        tens = num // 10
+        units = num % 10
+        return cn_digits[tens] + "十" + (cn_digits[units] if units != 0 else "")
+    return str(num)
+
+def parse_law_structure(content):
+    """
+    解析单元格文本中的“条”、“款”、“项”结构
+    规则：
+    1. 换行即为下一款；
+    2. 以（一）（二）或 (1)(2) 开头的文本为当前款下的“项”；
+    """
+    if not content:
+        return "", []
+
+    art_num = extract_article_number(content)
+    lines = [line.strip() for line in content.split('\n') if line.strip()]
+    if not lines:
+        return art_num, []
+
+    paragraphs = []
+    current_para = None
+    para_counter = 0
+
+    # 判断是否以“项”符号开头的正则
+    item_re = re.compile(r'^[\s\u3000]*[（\(]([一二三四五六七八九十0-9]+)[）\)]')
+
+    for line in lines:
+        item_match = item_re.match(line)
+        if item_match:
+            # 属于“项”
+            if current_para is None:
+                para_counter += 1
+                current_para = {
+                    "para_idx": para_counter,
+                    "para_cn": f"第{int_to_cn(para_counter)}",
+                    "header_text": "",
+                    "lines": [],
+                    "items": []
+                }
+                paragraphs.append(current_para)
+            
+            item_idx = len(current_para["items"]) + 1
+            item_dict = {
+                "item_idx": item_idx,
+                "item_cn": f"第{int_to_cn(item_idx)}",
+                "text": line
+            }
+            current_para["items"].append(item_dict)
+            current_para["lines"].append(line)
+        else:
+            # 属于新的“款”
+            para_counter += 1
+            current_para = {
+                "para_idx": para_counter,
+                "para_cn": f"第{int_to_cn(para_counter)}",
+                "header_text": line,
+                "lines": [line],
+                "items": []
+            }
+            paragraphs.append(current_para)
+
+    for p in paragraphs:
+        p["full_text"] = "\n".join(p["lines"])
+
+    return art_num, paragraphs
 
 def parse_fine_amount(text):
     """提取“1、罚款：”背后的数字大小用于排序"""
@@ -778,7 +850,6 @@ with top_bar_right:
         st.markdown(f"<div style='font-family: JetBrains Mono, monospace; font-size: 0.8rem; text-align: right; padding-top: 6px;'>用户: {st.session_state.user_identity}</div>", unsafe_allow_html=True)
     with history_col:
         if st.session_state.authenticated:
-            # === 新增功能：搜索记录下拉浮窗 ===
             with st.popover("搜索记录"):
                 if not st.session_state.search_history:
                     st.write("暂无记录")
@@ -825,7 +896,6 @@ if st.session_state.show_terms_page:
     
     term_keyword = st.text_input("检索术语关键字 (如：个人信息、重要数据、GDPR...)", key="standalone_term_search", placeholder="在此输入关键字进行检索...")
     
-    # 捕获并保存术语检索记录
     if term_keyword:
         if not st.session_state.search_history or st.session_state.search_history[-1] != term_keyword:
             if term_keyword in st.session_state.search_history:
@@ -1007,7 +1077,6 @@ else:
                 cases_data.sort(key=lambda x: x["fine_amount"], reverse=True)
                     
                 if st.session_state.selected_case is None:
-                    # ==== 新增说明 2：案例库联动说明文字 ====
                     st.markdown(
                         """
                         <div class="sharp-card" style="border-top: 4px solid #111;">
@@ -1110,7 +1179,6 @@ else:
         
         title_col, btn_col = st.columns([4, 1])
         with title_col:
-            # ==== 新增说明 1：法律库联动说明文字 ====
             st.markdown(
                 """
                 <div class="sharp-card" style="border-top: 4px solid #111; margin-bottom: 0; height: 100%;">
@@ -1159,7 +1227,6 @@ else:
                     
                 keyword = st.text_input("搜索", placeholder="如：数据出境、GDPR...", key="law_search_input")
                 
-                # 捕获并保存法律库检索记录
                 if keyword:
                     if not st.session_state.search_history or st.session_state.search_history[-1] != keyword:
                         if keyword in st.session_state.search_history:
@@ -1168,12 +1235,15 @@ else:
                 
                 export_col1, export_col2 = st.columns([2, 1])
                 with export_col1:
-                    st.markdown(f"### 已选择 {len(st.session_state.selected_laws)} 条法条")
+                    st.markdown(f"### 已选择 {len(st.session_state.selected_laws)} 条内容")
                     if st.session_state.selected_laws:
                         st.markdown("**自动生成引用格式：**")
                         for law in st.session_state.selected_laws:
-                            art_num = extract_article_number(law.get("content", ""))
-                            citation_title = f"{law['law_title']} {art_num}".strip() if art_num else law["law_title"]
+                            if "citation" in law:
+                                citation_title = law["citation"]
+                            else:
+                                art_num = extract_article_number(law.get("content", ""))
+                                citation_title = f"{law['law_title']} {art_num}".strip() if art_num else law["law_title"]
                             st.write(citation_title)
                 with export_col2:
                     st.markdown("### 操作")
@@ -1223,23 +1293,30 @@ else:
                             law_id = int(idx)
                             law_text = row["content"]
                             
-                            checked = st.checkbox(
+                            # 细粒度解析条款（条、款、项）结构
+                            art_num, paragraphs = parse_law_structure(law_text)
+                            art_citation = f"{law_title} {art_num}".strip() if art_num else law_title
+                            
+                            art_key = f"law_{law_id}_art"
+                            checked_art = st.checkbox(
                                 f"选择该条文",
                                 key=f"law_checkbox_{law_id}"
                             )
                             
-                            law_item = {
+                            art_item = {
+                                "item_key": art_key,
                                 "db_index": law_id,
                                 "law_title": law_title,
-                                "content": law_text
+                                "content": law_text,
+                                "citation": art_citation
                             }
-                            if checked:
-                                if not any(x["db_index"] == law_id for x in st.session_state.selected_laws):
-                                    st.session_state.selected_laws.append(law_item)
+                            if checked_art:
+                                if not any(x.get("item_key") == art_key for x in st.session_state.selected_laws):
+                                    st.session_state.selected_laws.append(art_item)
                             else:
                                 st.session_state.selected_laws = [
                                     x for x in st.session_state.selected_laws
-                                    if x["db_index"] != law_id
+                                    if x.get("item_key") != art_key
                                 ]
                                 
                             tags_html = ""
@@ -1248,24 +1325,93 @@ else:
                                 tags_str = "".join([f'<span class="law-tag">{t}</span>' for t in tags])
                                 tags_html = f'<div style="margin-bottom:10px;">{tags_str}</div>'
                                 
-                            content_text = law_text
-                            content_text = re.sub(r'(?im)^\s*svg\s*$', '', content_text)
-                            
-                            if keyword:
-                                content_text = content_text.replace(
-                                    keyword,
-                                    f"<span style='border:1px solid #111;color:#CC0000;font-weight:bold;'>{keyword}</span>"
+                            if tags_html:
+                                st.markdown(tags_html, unsafe_allow_html=True)
+
+                            # 判断是否存在款/项细分结构
+                            has_sub_structure = len(paragraphs) > 1 or (len(paragraphs) == 1 and len(paragraphs[0]["items"]) > 0)
+
+                            if not has_sub_structure:
+                                # 单段无细分内容按常规格式渲染
+                                content_text = law_text
+                                content_text = re.sub(r'(?im)^\s*svg\s*$', '', content_text)
+                                if keyword:
+                                    content_text = content_text.replace(
+                                        keyword,
+                                        f"<span style='border:1px solid #111;color:#CC0000;font-weight:bold;'>{keyword}</span>"
+                                    )
+                                content_text = content_text.replace('\n', '<br>')
+                                html_str = (
+                                    f'<div class="law-content" style="margin-bottom:20px;white-space:normal;">'
+                                    f'<div style="white-space:pre-wrap;line-height:1.8;">{content_text}</div>'
+                                    f'</div>'
                                 )
-                                
-                            content_text = content_text.replace('\n', '<br>')
-                            
-                            html_str = (
-                                f'<div class="law-content" style="margin-bottom:20px;white-space:normal;">'
-                                f'{tags_html}'
-                                f'<div style="white-space:pre-wrap;line-height:1.8;">{content_text}</div>'
-                                f'</div>'
-                            )
-                            st.markdown(html_str, unsafe_allow_html=True)
+                                st.markdown(html_str, unsafe_allow_html=True)
+                            else:
+                                # 包含款、项的条文，渲染款与项的可交互选择框
+                                st.markdown('<div class="law-content" style="margin-bottom:20px;white-space:normal;">', unsafe_allow_html=True)
+                                for p in paragraphs:
+                                    para_idx = p["para_idx"]
+                                    para_cn = p["para_cn"]
+                                    p_key = f"law_{law_id}_p_{para_idx}"
+                                    p_citation = f"{law_title} {art_num}{para_cn}款".strip() if art_num else f"{law_title} {para_cn}款"
+                                    
+                                    p_item = {
+                                        "item_key": p_key,
+                                        "db_index": law_id,
+                                        "law_title": law_title,
+                                        "content": p["full_text"],
+                                        "citation": p_citation
+                                    }
+
+                                    checked_p = st.checkbox(f"选择{para_cn}款", key=p_key)
+                                    if checked_p:
+                                        if not any(x.get("item_key") == p_key for x in st.session_state.selected_laws):
+                                            st.session_state.selected_laws.append(p_item)
+                                    else:
+                                        st.session_state.selected_laws = [
+                                            x for x in st.session_state.selected_laws
+                                            if x.get("item_key") != p_key
+                                        ]
+
+                                    if p["header_text"]:
+                                        h_text = p["header_text"]
+                                        if keyword:
+                                            h_text = h_text.replace(keyword, f"<span style='border:1px solid #111;color:#CC0000;font-weight:bold;'>{keyword}</span>")
+                                        st.markdown(f"<div style='margin-left: 10px; margin-bottom: 8px;'>{h_text}</div>", unsafe_allow_html=True)
+
+                                    if p["items"]:
+                                        for it in p["items"]:
+                                            item_idx = it["item_idx"]
+                                            item_cn = it["item_cn"]
+                                            it_key = f"law_{law_id}_p_{para_idx}_i_{item_idx}"
+                                            it_citation = f"{law_title} {art_num}{para_cn}款{item_cn}项".strip() if art_num else f"{law_title} {para_cn}款{item_cn}项"
+                                            
+                                            it_item = {
+                                                "item_key": it_key,
+                                                "db_index": law_id,
+                                                "law_title": law_title,
+                                                "content": it["text"],
+                                                "citation": it_citation
+                                            }
+
+                                            c_space, c_chk = st.columns([0.04, 0.96])
+                                            with c_chk:
+                                                checked_it = st.checkbox(f"选择{para_cn}款{item_cn}项", key=it_key)
+                                                if checked_it:
+                                                    if not any(x.get("item_key") == it_key for x in st.session_state.selected_laws):
+                                                        st.session_state.selected_laws.append(it_item)
+                                                else:
+                                                    st.session_state.selected_laws = [
+                                                        x for x in st.session_state.selected_laws
+                                                        if x.get("item_key") != it_key
+                                                    ]
+                                                
+                                                it_text = it["text"]
+                                                if keyword:
+                                                    it_text = it_text.replace(keyword, f"<span style='border:1px solid #111;color:#CC0000;font-weight:bold;'>{keyword}</span>")
+                                                st.markdown(f"<div style='margin-left: 10px; color: #333; margin-bottom: 6px;'>{it_text}</div>", unsafe_allow_html=True)
+                                st.markdown('</div>', unsafe_allow_html=True)
                             
                 st.divider()
                 
@@ -1289,8 +1435,11 @@ else:
                     elements.append(Spacer(1, 12))
                     
                     for law in st.session_state.selected_laws:
-                        art_num = extract_article_number(law.get("content", ""))
-                        citation_title = f"{law['law_title']} {art_num}".strip() if art_num else law["law_title"]
+                        if "citation" in law:
+                            citation_title = law["citation"]
+                        else:
+                            art_num = extract_article_number(law.get("content", ""))
+                            citation_title = f"{law['law_title']} {art_num}".strip() if art_num else law["law_title"]
                         elements.append(Paragraph(citation_title, heading_style))
                         clean_pdf_text = re.sub(r'(?im)^\s*svg\s*$', '', law["content"])
                         safe_content = clean_pdf_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
@@ -1312,7 +1461,6 @@ else:
             elif st.session_state.nav_choice == "出境全流程时间轴":
                 st.markdown("### 数据出境全流程纵向时间轴")
                 st.markdown("我们将数据出境的合规流程拆成三个阶段：出境前的准备与评估、出境中的实施与传输、出境后的合规监督。按这个顺序梳理，您能更清楚每一步该做什么。")
-                # ==== 新增说明 3：时间轴联动说明文字 ====
                 st.markdown("<p style='font-family: Lora, serif; font-size: 0.95rem; line-height: 1.5; color: #333333;'><span style='color: #CC0000; font-weight: bold;'>联动功能说明：</span>支持与法律库和案例库的联动——例如点击“安全评估申报”节点，可跳转至法律库中《数据出境安全评估办法》的对应条款；点击“TIA评估”节点，可跳转至案例库中Schrems II案。</p>", unsafe_allow_html=True)
                 
                 all_laws_df = pd.read_sql("SELECT region, category, law_title, sub_cat_0, sub_cat_1, content FROM compliance_laws", conn)
