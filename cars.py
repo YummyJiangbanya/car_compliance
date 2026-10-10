@@ -623,23 +623,17 @@ def parse_law_structure(content):
     """
     if not content:
         return "", []
-
     art_num = extract_article_number(content)
     lines = [line.strip() for line in content.split('\n') if line.strip()]
     if not lines:
         return art_num, []
-
     paragraphs = []
     current_para = None
     para_counter = 0
-
-    # 判断是否以“项”符号开头的正则
     item_re = re.compile(r'^[\s\u3000]*[（\(]([一二三四五六七八九十0-9]+)[）\)]')
-
     for line in lines:
         item_match = item_re.match(line)
         if item_match:
-            # 属于“项”
             if current_para is None:
                 para_counter += 1
                 current_para = {
@@ -660,7 +654,6 @@ def parse_law_structure(content):
             current_para["items"].append(item_dict)
             current_para["lines"].append(line)
         else:
-            # 属于新的“款”
             para_counter += 1
             current_para = {
                 "para_idx": para_counter,
@@ -670,10 +663,8 @@ def parse_law_structure(content):
                 "items": []
             }
             paragraphs.append(current_para)
-
     for p in paragraphs:
         p["full_text"] = "\n".join(p["lines"])
-
     return art_num, paragraphs
 
 def parse_fine_amount(text):
@@ -983,6 +974,9 @@ if st.session_state.show_terms_page:
             st.error(f"加载术语表异常: {e}")
     else:
         st.warning("未检测到 `术语解释总结.xlsx` 文件，请确认已上传至同一目录。")
+    
+    # 底部右下角补充最后更新日期
+    st.markdown("<div style='text-align: right; font-family: JetBrains Mono, monospace; font-size: 0.8rem; color: #666; margin-top: 40px;'>最后更新日期：2026/10/11</div>", unsafe_allow_html=True)
 else:
     if st.session_state.nav_choice == "首页":
         st.markdown(
@@ -1016,6 +1010,8 @@ else:
             """,
             unsafe_allow_html=True
         )
+        # 底部右下角补充最后更新日期
+        st.markdown("<div style='text-align: right; font-family: JetBrains Mono, monospace; font-size: 0.8rem; color: #666; margin-top: 40px;'>最后更新日期：2026/10/11</div>", unsafe_allow_html=True)
     elif st.session_state.nav_choice == "关于我们":
         st.markdown(
             """
@@ -1037,6 +1033,8 @@ else:
             """, 
             unsafe_allow_html=True
         )
+        # 底部右下角补充最后更新日期
+        st.markdown("<div style='text-align: right; font-family: JetBrains Mono, monospace; font-size: 0.8rem; color: #666; margin-top: 40px;'>最后更新日期：2026/10/11</div>", unsafe_allow_html=True)
     elif st.session_state.nav_choice == "案例库":
         st.markdown(
             """
@@ -1164,6 +1162,9 @@ else:
                 st.error(f"加载案例库表格异常: {e}")
         else:
             st.warning("未检测到 `案例库.xlsx` 文件，请确认已上传至同一目录。")
+            
+        # 底部右下角补充最后更新日期
+        st.markdown("<div style='text-align: right; font-family: JetBrains Mono, monospace; font-size: 0.8rem; color: #666; margin-top: 40px;'>最后更新日期：2026/10/11</div>", unsafe_allow_html=True)
             
     else:
         st.markdown(
@@ -1293,7 +1294,6 @@ else:
                             law_id = int(idx)
                             law_text = row["content"]
                             
-                            # 细粒度解析条款（条、款、项）结构
                             art_num, paragraphs = parse_law_structure(law_text)
                             art_citation = f"{law_title} {art_num}".strip() if art_num else law_title
                             
@@ -1327,14 +1327,11 @@ else:
                                 
                             if tags_html:
                                 st.markdown(tags_html, unsafe_allow_html=True)
-
-                            # 判断是否存在款/项细分结构
+                            
                             has_sub_structure = len(paragraphs) > 1 or (len(paragraphs) == 1 and len(paragraphs[0]["items"]) > 0)
-
                             if not has_sub_structure:
-                                # 单段无细分内容按常规格式渲染
                                 content_text = law_text
-                                content_text = re.sub(r'(?im)^\s*svg\s*$', '', content_text)
+                                content_text = re.sub(r'(?im)^\s*svg\s*\$', '', content_text)
                                 if keyword:
                                     content_text = content_text.replace(
                                         keyword,
@@ -1348,7 +1345,6 @@ else:
                                 )
                                 st.markdown(html_str, unsafe_allow_html=True)
                             else:
-                                # 包含款、项的条文，渲染款与项的可交互选择框
                                 st.markdown('<div class="law-content" style="margin-bottom:20px;white-space:normal;">', unsafe_allow_html=True)
                                 for p in paragraphs:
                                     para_idx = p["para_idx"]
@@ -1363,7 +1359,6 @@ else:
                                         "content": p["full_text"],
                                         "citation": p_citation
                                     }
-
                                     checked_p = st.checkbox(f"选择{para_cn}款", key=p_key)
                                     if checked_p:
                                         if not any(x.get("item_key") == p_key for x in st.session_state.selected_laws):
@@ -1373,13 +1368,11 @@ else:
                                             x for x in st.session_state.selected_laws
                                             if x.get("item_key") != p_key
                                         ]
-
                                     if p["header_text"]:
                                         h_text = p["header_text"]
                                         if keyword:
                                             h_text = h_text.replace(keyword, f"<span style='border:1px solid #111;color:#CC0000;font-weight:bold;'>{keyword}</span>")
                                         st.markdown(f"<div style='margin-left: 10px; margin-bottom: 8px;'>{h_text}</div>", unsafe_allow_html=True)
-
                                     if p["items"]:
                                         for it in p["items"]:
                                             item_idx = it["item_idx"]
@@ -1394,7 +1387,6 @@ else:
                                                 "content": it["text"],
                                                 "citation": it_citation
                                             }
-
                                             c_space, c_chk = st.columns([0.04, 0.96])
                                             with c_chk:
                                                 checked_it = st.checkbox(f"选择{para_cn}款{item_cn}项", key=it_key)
@@ -1441,7 +1433,7 @@ else:
                             art_num = extract_article_number(law.get("content", ""))
                             citation_title = f"{law['law_title']} {art_num}".strip() if art_num else law["law_title"]
                         elements.append(Paragraph(citation_title, heading_style))
-                        clean_pdf_text = re.sub(r'(?im)^\s*svg\s*$', '', law["content"])
+                        clean_pdf_text = re.sub(r'(?im)^\s*svg\s*\$', '', law["content"])
                         safe_content = clean_pdf_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
                         elements.append(Paragraph(safe_content, body_style))
                         elements.append(Spacer(1, 12))
@@ -1499,7 +1491,7 @@ else:
                             tag_str = f"[{region_n}] {sc0}" if sc0 else f"[{region_n}]"
                             
                             content_safe = content
-                            content_safe = re.sub(r'(?im)^\s*svg\s*$', '', content_safe)
+                            content_safe = re.sub(r'(?im)^\s*svg\s*\$', '', content_safe)
                             content_safe = content_safe.replace('\n', '<br>')
                             
                             timeline_card_html = (
@@ -1515,3 +1507,6 @@ else:
                             st.markdown(timeline_card_html, unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
             conn.close()
+            
+        # 底部右下角补充最后更新日期
+        st.markdown("<div style='text-align: right; font-family: JetBrains Mono, monospace; font-size: 0.8rem; color: #666; margin-top: 40px;'>最后更新日期：2026/10/11</div>", unsafe_allow_html=True)
